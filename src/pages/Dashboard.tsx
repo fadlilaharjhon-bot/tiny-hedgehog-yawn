@@ -14,6 +14,22 @@ const TOPIC_STATUS = "POLINES/FADLI/IL";
 const TOPIC_COMMAND = "POLINES/PADLI/IL";
 const TOPIC_THRESHOLD = "POLINES/BADLI/IL";
 
+// Menggunakan useRef untuk menyimpan ID timer agar tetap ada di antara render
+const useTimers = () => {
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const gracePeriodTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    // Cleanup saat komponen dibongkar
+    return () => {
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+      if (gracePeriodTimerRef.current) clearTimeout(gracePeriodTimerRef.current);
+    };
+  }, []);
+
+  return { debounceTimerRef, gracePeriodTimerRef };
+};
+
 const Dashboard = () => {
   const { client, connectionStatus, publish } = useMqtt();
   const { logout } = useAuth();
@@ -24,10 +40,9 @@ const Dashboard = () => {
   const [threshold, setThreshold] = useState(40);
   const [chartData, setChartData] = useState<{ time: string; intensity: number }[]>([]);
 
-  // Ref untuk menandai apakah pengguna sedang berinteraksi dengan slider
   const isUserInteracting = useRef(false);
+  const { debounceTimerRef, gracePeriodTimerRef } = useTimers();
 
-  // Efek untuk menangani pesan MQTT yang masuk
   useEffect(() => {
     if (!client || connectionStatus !== "Connected") return;
 
@@ -35,23 +50,19 @@ const Dashboard = () => {
       if (topic === TOPIC_STATUS) {
         try {
           const data = JSON.parse(payload.toString());
-          setLightIntensity(data.intensity);
+          setLightIntensity(data.intensity ?? 0);
           setLampStatus(data.led === "ON");
-          setMode(data.mode.toLowerCase());
+          setMode(data.mode?.toLowerCase() ?? "auto");
 
           const thresholdFromMqtt = data.threshold;
-          // Lakukan validasi sebelum mengatur state
-          if (typeof thresholdFromMqtt === 'number') {
-            // Hanya perbarui threshold dari MQTT jika pengguna tidak sedang menggeser slider
-            if (!isUserInteracting.current) {
-              setThreshold(thresholdFromMqtt);
-            }
+          if (typeof thresholdFromMqtt === 'number' && !isUserInteracting.current) {
+            setThreshold(thresholdFromMqtt);
           }
 
           const now = new Date();
           const newPoint = {
             time: `${now.getHours()}:${now.getMinutes()}:${now.getSeconds()}`,
-            intensity: data.intensity,
+            intensity: data.intensity ?? 0,
           };
           setChartData((prevData) => [...prevData, newPoint].slice(-MAX_CHART_POINTS));
         } catch (e) {
@@ -68,32 +79,6 @@ const Dashboard = () => {
     };
   }, [client, connectionStatus]);
 
-  // Efek untuk mengirim data threshold dengan debounce DAN grace period yang lebih lama
-  useEffect(() => {
-    if (!isUserInteracting.current) {
-      return;
-    }
-
-    const debounceTimer = setTimeout(() => {
-      if (client && connectionStatus === "Connected") {
-        const deviceThreshold = Math.round((threshold / 100) * 1023);
-        publish(TOPIC_THRESHOLD, JSON.stringify({ threshold: deviceThreshold }));
-
-        // Mulai "grace period": tunggu 2 detik sebelum mendengarkan update MQTT lagi
-        // Ini memberi waktu yang cukup bagi Node-RED untuk memproses dan mengirim kembali status baru.
-        setTimeout(() => {
-          isUserInteracting.current = false;
-        }, 2000); // Grace period 2 detik (lebih aman)
-      } else {
-        isUserInteracting.current = false;
-      }
-    }, 500); // Debounce 500ms
-
-    return () => {
-      clearTimeout(debounceTimer);
-    };
-  }, [threshold, client, connectionStatus, publish]);
-
   const handleSetMode = (newMode: "auto" | "manual") => {
     publish(TOPIC_COMMAND, JSON.stringify({ mode: newMode }));
   };
@@ -105,9 +90,28 @@ const Dashboard = () => {
   };
 
   const handleSetThreshold = (newThreshold: number) => {
-    // Tandai bahwa interaksi dimulai dan perbarui UI secara instan
-    isUserInteracting.current = true;
+    // 1. Perbarui UI secara instan
     setThreshold(newThreshold);
+    
+    // 2. Tandai bahwa pengguna sedang berinteraksi
+    isUserInteracting.current = true;
+
+    // 3. Batalkan SEMUA timer yang sedang berjalan untuk memulai kembali
+    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+    if (gracePeriodTimerRef.current) clearTimeout(gracePeriodTimerRef.current);
+
+    // 4. Atur timer debounce baru
+    debounceTimerRef.current = setTimeout(() => {
+      if (client && connectionStatus === "Connected") {
+        const deviceThreshold = Math.round((newThreshold / 100) * 1023);
+        publish(TOPIC_THRESHOLD, JSON.stringify({ threshold: deviceThreshold }));
+      }
+
+      // 5. Atur timer "periode tenang" yang baru
+      gracePeriodTimerRef.current = setTimeout(() => {
+        isUserInteracting.current = false;
+      }, 3000); // Periode tenang 3 detik yang sangat aman
+    }, 500); // Jeda 0.5 detik setelah slider berhenti
   };
 
   return (
