@@ -26,17 +26,17 @@ const HouseStatus = ({ isOn }: HouseStatusProps) => {
           <rect x="5" y="5" width="190" height="240" rx="5" className="fill-none stroke-slate-500" strokeWidth="2" />
 
           {/* Left Side: Carport */}
-          <rect x="10" y="160" width="70" height="80" className="fill-slate-700" />
-          <line x1="30" y1="160" x2="30" y2="240" className="stroke-slate-600" strokeWidth="1" />
-          <line x1="50" y1="160" x2="50" y2="240" className="stroke-slate-600" strokeWidth="1" />
-          <line x1="70" y1="160" x2="70" y2="240" className="stroke-slate-600" strokeWidth="1" />
+          <rect x="10" y="160" width="70" height="80" className={`transition-colors ${isOn ? 'fill-slate-700' : 'fill-slate-800'}`} />
+          <line x1="30" y1="160" x2="30" y2="240" className={`transition-colors ${isOn ? 'stroke-slate-600' : 'stroke-slate-700'}`} strokeWidth="1" />
+          <line x1="50" y1="160" x2="50" y2="240" className={`transition-colors ${isOn ? 'stroke-slate-600' : 'stroke-slate-700'}`} strokeWidth="1" />
+          <line x1="70" y1="160" x2="70" y2="240" className={`transition-colors ${isOn ? 'stroke-slate-600' : 'stroke-slate-700'}`} strokeWidth="1" />
 
           {/* Right Side: Garden */}
-          <rect x="140" y="160" width="55" height="80" className="fill-green-900/50" />
-          <circle cx="155" cy="180" r="5" className="fill-green-700" />
-          <circle cx="175" cy="190" r="6" className="fill-green-700" />
-          <circle cx="160" cy="210" r="4" className="fill-green-700" />
-          <circle cx="180" cy="225" r="5" className="fill-green-700" />
+          <rect x="140" y="160" width="55" height="80" className={`transition-colors ${isOn ? 'fill-green-900/50' : 'fill-green-950/60'}`} />
+          <circle cx="155" cy="180" r="5" className={`transition-colors ${isOn ? 'fill-green-700' : 'fill-green-900'}`} />
+          <circle cx="175" cy="190" r="6" className={`transition-colors ${isOn ? 'fill-green-700' : 'fill-green-900'}`} />
+          <circle cx="160" cy="210" r="4" className={`transition-colors ${isOn ? 'fill-green-700' : 'fill-green-900'}`} />
+          <circle cx="180" cy="225" r="5" className={`transition-colors ${isOn ? 'fill-green-700' : 'fill-green-900'}`} />
 
           {/* Main House Structure */}
           <rect x="10" y="10" width="180" height="150" className="fill-slate-600/50" />
@@ -54,7 +54,7 @@ const HouseStatus = ({ isOn }: HouseStatusProps) => {
                 filter="url(#terrace-glow-detailed)"
               />
             )}
-            <text x="110" y="175" textAnchor="middle" className="fill-slate-300 text-[8px] font-mono">TERAS</text>
+            <text x="110" y="175" textAnchor="middle" className={`text-[8px] font-mono transition-colors ${isOn ? 'fill-slate-900 font-bold' : 'fill-slate-400'}`}>TERAS</text>
           </g>
 
           {/* House Interior (visible when ON) */}
