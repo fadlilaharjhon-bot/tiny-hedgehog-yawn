@@ -40,27 +40,6 @@
         ]
     },
     {
-        "id": "745b8983883736f3",
-        "type": "ui_text",
-        "z": "b821a9320b0e9b6c",
-        "group": "7c39d4dcfd2174cc",
-        "order": 2,
-        "width": 10,
-        "height": 2,
-        "name": "Status",
-        "label": "LED Status:",
-        "format": "{{msg.payload.led}} | Mode: {{msg.payload.mode}} | Cahaya: {{msg.payload.intensity}}%",
-        "layout": "row-center",
-        "className": "",
-        "style": false,
-        "font": "",
-        "fontSize": "",
-        "color": "#000000",
-        "x": 710,
-        "y": 40,
-        "wires": []
-    },
-    {
         "id": "2a4cf9e9a89224aa",
         "type": "ui_button",
         "z": "b821a9320b0e9b6c",
@@ -476,7 +455,7 @@
         "y": 40,
         "wires": [
             [
-                "745b8983883736f3"
+                "e9db4ad59f1b8cc9"
             ]
         ]
     },
@@ -497,7 +476,7 @@
         "y": 120,
         "wires": [
             [
-                "745b8983883736f3"
+                "e9db4ad59f1b8cc9"
             ]
         ]
     },
@@ -801,17 +780,6 @@
         "responsetimeout": "10000"
     },
     {
-        "id": "7c39d4dcfd2174cc",
-        "type": "ui_group",
-        "name": "Kontrol LDR 2",
-        "tab": "b671471e6b2a038f",
-        "order": 1,
-        "disp": true,
-        "width": 30,
-        "collapse": false,
-        "className": ""
-    },
-    {
         "id": "901cb065573abe4a",
         "type": "gauth",
         "name": "fadli-722@fadlihome.iam.gserviceaccount.com"
@@ -848,6 +816,38 @@
         "sessionExpiry": ""
     },
     {
+        "id": "e9db4ad59f1b8cc9",
+        "type": "ui_text",
+        "z": "b821a9320b0e9b6c",
+        "group": "7c39d4dcfd2174cc",
+        "order": 2,
+        "width": 10,
+        "height": 2,
+        "name": "Status",
+        "label": "LED Status:",
+        "format": "{{msg.payload.led}} | Mode: {{msg.payload.mode}} | Cahaya: {{msg.payload.intensity}}%",
+        "layout": "row-center",
+        "className": "",
+        "style": false,
+        "font": "",
+        "fontSize": "",
+        "color": "#000000",
+        "x": 710,
+        "y": 40,
+        "wires": []
+    },
+    {
+        "id": "7c39d4dcfd2174cc",
+        "type": "ui_group",
+        "name": "Kontrol LDR 2",
+        "tab": "b671471e6b2a038f",
+        "order": 1,
+        "disp": true,
+        "width": 30,
+        "collapse": false,
+        "className": ""
+    },
+    {
         "id": "b671471e6b2a038f",
         "type": "ui_tab",
         "name": "dyad",
@@ -857,13 +857,11 @@
         "hidden": false
     },
     {
-        "id": "566db5612aae06c1",
+        "id": "161068b3395adae1",
         "type": "global-config",
         "env": [],
         "modules": {
-            "node-red-node-serialport": "2.0.3",
-            "node-red-dashboard": "3.6.6",
-            "node-red-contrib-google-sheets": "1.1.2"
+            "node-red-dashboard": "3.6.6"
         }
     }
 ]
