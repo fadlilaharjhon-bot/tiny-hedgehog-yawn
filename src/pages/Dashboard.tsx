@@ -10,12 +10,10 @@ import { LogOut } from "lucide-react";
 
 const MAX_CHART_POINTS = 30;
 
-// Topik yang sudah ada
+// Topik sesuai dengan flow Node-RED terbaru Anda
 const TOPIC_STATUS = "POLINES/FADLI/IL";
 const TOPIC_COMMAND = "POLINES/PADLI/IL";
 const TOPIC_THRESHOLD_SET = "POLINES/BADLI/IL";
-
-// Topik BARU khusus untuk konfirmasi threshold dari Node-RED
 const TOPIC_THRESHOLD_ECHO = "POLINES/BADLI/IL/ECHO";
 
 const Dashboard = () => {
@@ -29,11 +27,11 @@ const Dashboard = () => {
   const [chartData, setChartData] = useState<{ time: string; intensity: number }[]>([]);
 
   const debounceTimer = useRef<NodeJS.Timeout | null>(null);
+  const isConnected = connectionStatus === "Connected";
 
   useEffect(() => {
-    if (!client || connectionStatus !== "Connected") return;
+    if (!client || !isConnected) return;
 
-    // Berlangganan ke kedua topik
     client.subscribe(TOPIC_STATUS);
     client.subscribe(TOPIC_THRESHOLD_ECHO);
 
@@ -41,7 +39,6 @@ const Dashboard = () => {
       try {
         const data = JSON.parse(payload.toString());
 
-        // Menangani pesan dari topik status umum
         if (topic === TOPIC_STATUS) {
           setLightIntensity(data.intensity ?? 0);
           setLampStatus(data.led === "ON");
@@ -55,7 +52,6 @@ const Dashboard = () => {
           setChartData((prevData) => [...prevData, newPoint].slice(-MAX_CHART_POINTS));
         }
 
-        // Menangani pesan dari topik konfirmasi threshold
         if (topic === TOPIC_THRESHOLD_ECHO) {
           const confirmedThreshold = data.threshold;
           if (typeof confirmedThreshold === 'number') {
@@ -72,7 +68,7 @@ const Dashboard = () => {
     return () => {
       client.off("message", messageHandler);
     };
-  }, [client, connectionStatus]);
+  }, [client, isConnected]);
 
   const handleSetMode = (newMode: "auto" | "manual") => {
     publish(TOPIC_COMMAND, JSON.stringify({ mode: newMode }));
@@ -92,7 +88,7 @@ const Dashboard = () => {
     }
 
     debounceTimer.current = setTimeout(() => {
-      if (client && connectionStatus === "Connected") {
+      if (client && isConnected) {
         const deviceThreshold = Math.round((newThreshold / 100) * 1023);
         publish(TOPIC_THRESHOLD_SET, JSON.stringify({ threshold: deviceThreshold }));
       }
@@ -106,7 +102,7 @@ const Dashboard = () => {
           <h1 className="text-3xl font-bold">Dasbor Lampu Teras</h1>
           <div className="flex items-center gap-4">
             <div className="text-sm text-slate-300">
-              MQTT: <span className={`font-bold ${connectionStatus === 'Connected' ? 'text-green-400' : 'text-red-400'}`}>{connectionStatus}</span>
+              MQTT: <span className={`font-bold ${isConnected ? 'text-green-400' : 'text-red-400'}`}>{connectionStatus}</span>
             </div>
             <Button variant="destructive" size="sm" onClick={logout}>
               <LogOut className="w-4 h-4 mr-2" />
@@ -123,6 +119,7 @@ const Dashboard = () => {
             toggleLamp={handleToggleLamp}
             threshold={threshold}
             setThreshold={handleSetThreshold}
+            disabled={!isConnected}
           />
           <div className="md:col-span-2 lg:col-span-3">
             <IntensityChart data={chartData} />
