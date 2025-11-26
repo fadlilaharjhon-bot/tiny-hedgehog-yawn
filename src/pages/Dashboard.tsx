@@ -12,10 +12,7 @@ const MAX_CHART_POINTS = 30;
 
 const TOPIC_STATUS = "POLINES/FADLI/IL";
 const TOPIC_COMMAND = "POLINES/PADLI/IL";
-const TOPIC_THRESHOLD = "POLINES/BADLI/IL"; // Topik khusus untuk threshold
-
-// Variabel untuk menyimpan timer debounce di luar komponen
-let debounceTimeout: ReturnType<typeof setTimeout> | null = null;
+const TOPIC_THRESHOLD = "POLINES/BADLI/IL";
 
 const Dashboard = () => {
   const { client, connectionStatus, publish } = useMqtt();
@@ -27,56 +24,71 @@ const Dashboard = () => {
   const [threshold, setThreshold] = useState(40);
   const [chartData, setChartData] = useState<{ time: string; intensity: number }[]>([]);
 
-  // Ref untuk menandai apakah pengguna sedang aktif mengubah slider
-  const isUserUpdatingThreshold = useRef(false);
+  // Ref untuk menandai apakah pengguna sedang berinteraksi dengan slider
+  const isUserInteracting = useRef(false);
 
   // Efek untuk menangani pesan MQTT yang masuk
   useEffect(() => {
-    if (client && connectionStatus === "Connected") {
-      client.subscribe(TOPIC_STATUS, (err) => {
-        if (err) console.error(`Gagal subscribe ke topik ${TOPIC_STATUS}`);
-      });
+    if (!client || connectionStatus !== "Connected") return;
 
-      const messageHandler = (topic: string, payload: Buffer) => {
-        if (topic === TOPIC_STATUS) {
-          try {
-            const data = JSON.parse(payload.toString());
-            
-            const intensityPercent = data.intensity;
-            const thresholdPercent = data.threshold;
+    const messageHandler = (topic: string, payload: Buffer) => {
+      if (topic === TOPIC_STATUS) {
+        try {
+          const data = JSON.parse(payload.toString());
+          setLightIntensity(data.intensity);
+          setLampStatus(data.led === "ON");
+          setMode(data.mode.toLowerCase());
 
-            setLightIntensity(intensityPercent);
-            setLampStatus(data.led === "ON");
-            setMode(data.mode.toLowerCase());
-
-            // Hanya perbarui threshold dari MQTT jika pengguna tidak sedang menggeser slider
-            if (!isUserUpdatingThreshold.current) {
-              setThreshold(thresholdPercent);
-            }
-
-            const now = new Date();
-            const newPoint = {
-              time: `${now.getHours()}:${now.getMinutes()}:${now.getSeconds()}`,
-              intensity: intensityPercent,
-            };
-            setChartData((prevData) => [...prevData, newPoint].slice(-MAX_CHART_POINTS));
-          } catch (e) {
-            console.error("Gagal mem-parsing pesan masuk:", e);
+          // Hanya perbarui threshold dari MQTT jika pengguna tidak sedang menggeser slider
+          if (!isUserInteracting.current) {
+            setThreshold(data.threshold);
           }
-        }
-      };
 
-      client.on("message", messageHandler);
-
-      // Fungsi cleanup untuk menghapus listener saat komponen dibongkar
-      return () => {
-        client.off("message", messageHandler);
-        if (client.connected) {
-          client.unsubscribe(TOPIC_STATUS);
+          const now = new Date();
+          const newPoint = {
+            time: `${now.getHours()}:${now.getMinutes()}:${now.getSeconds()}`,
+            intensity: data.intensity,
+          };
+          setChartData((prevData) => [...prevData, newPoint].slice(-MAX_CHART_POINTS));
+        } catch (e) {
+          console.error("Gagal mem-parsing pesan masuk:", e);
         }
-      };
-    }
+      }
+    };
+
+    client.subscribe(TOPIC_STATUS);
+    client.on("message", messageHandler);
+
+    return () => {
+      client.off("message", messageHandler);
+    };
   }, [client, connectionStatus]);
+
+  // Efek untuk mengirim data threshold dengan debounce DAN grace period
+  useEffect(() => {
+    if (!isUserInteracting.current) {
+      return;
+    }
+
+    const debounceTimer = setTimeout(() => {
+      if (client && connectionStatus === "Connected") {
+        const deviceThreshold = Math.round((threshold / 100) * 1023);
+        publish(TOPIC_THRESHOLD, JSON.stringify({ threshold: deviceThreshold }));
+
+        // Mulai "grace period": tunggu 1 detik sebelum mendengarkan update MQTT lagi
+        setTimeout(() => {
+          isUserInteracting.current = false;
+        }, 1000); // Grace period 1 detik
+      } else {
+        // Jika koneksi terputus saat debouncing, reset flag
+        isUserInteracting.current = false;
+      }
+    }, 500); // Debounce 500ms
+
+    return () => {
+      clearTimeout(debounceTimer);
+    };
+  }, [threshold, client, connectionStatus, publish]);
 
   const handleSetMode = (newMode: "auto" | "manual") => {
     publish(TOPIC_COMMAND, JSON.stringify({ mode: newMode }));
@@ -88,28 +100,10 @@ const Dashboard = () => {
     }
   };
 
-  // Fungsi ini menangani seluruh logika interaksi slider
   const handleSetThreshold = (newThreshold: number) => {
-    // 1. Perbarui UI secara langsung agar terasa responsif
+    // Tandai bahwa interaksi dimulai dan perbarui UI
+    isUserInteracting.current = true;
     setThreshold(newThreshold);
-
-    // 2. Tandai bahwa pengguna sedang aktif mengubah nilai
-    isUserUpdatingThreshold.current = true;
-
-    // 3. Hapus timer debounce yang mungkin sedang berjalan
-    if (debounceTimeout) {
-      clearTimeout(debounceTimeout);
-    }
-
-    // 4. Atur timer baru
-    debounceTimeout = setTimeout(() => {
-      // Setelah 500ms tidak ada perubahan, kirim nilai akhir ke perangkat
-      const deviceThreshold = Math.round((newThreshold / 100) * 1023);
-      publish(TOPIC_THRESHOLD, JSON.stringify({ threshold: deviceThreshold }));
-
-      // 5. Hapus tanda, sehingga aplikasi kembali mendengarkan pembaruan dari perangkat
-      isUserUpdatingThreshold.current = false;
-    }, 500); // Jeda 500ms setelah perubahan terakhir
   };
 
   return (
