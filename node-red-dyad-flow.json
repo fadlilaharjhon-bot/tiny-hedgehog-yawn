@@ -244,7 +244,7 @@
         "type": "function",
         "z": "b821a9320b0e9b6c",
         "name": "function 2",
-        "func": "msg.payload = msg.payload.intensity;\\nreturn msg;",
+        "func": "if (msg.payload && typeof msg.payload.intensity !== 'undefined') {\\n    msg.payload = msg.payload.intensity;\\n    return msg;\\n}\\nreturn null;",
         "outputs": 1,
         "timeout": 0,
         "noerr": 0,
