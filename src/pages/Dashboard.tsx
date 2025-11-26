@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import LightIntensityGauge from "@/components/LightIntensityGauge";
-import LampStatus from "@/components/LampStatus";
+import HouseStatus from "@/components/HouseStatus"; // Mengganti LampStatus
 import ControlPanel from "@/components/ControlPanel";
 import IntensityChart from "@/components/IntensityChart";
 import { useMqtt } from "@/components/MqttProvider";
@@ -91,11 +91,10 @@ const Dashboard = () => {
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           <LightIntensityGauge intensity={lightIntensity} />
-          <LampStatus isOn={lampStatus} />
+          <HouseStatus isOn={lampStatus} />
           <ControlPanel
             mode={mode}
             setMode={handleSetMode}
-            isLampOn={lampStatus}
             toggleLamp={handleToggleLamp}
             threshold={threshold}
             setThreshold={handleSetThreshold}
