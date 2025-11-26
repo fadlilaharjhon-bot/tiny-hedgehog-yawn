@@ -14,22 +14,6 @@ const TOPIC_STATUS = "POLINES/FADLI/IL";
 const TOPIC_COMMAND = "POLINES/PADLI/IL";
 const TOPIC_THRESHOLD = "POLINES/BADLI/IL";
 
-// Menggunakan useRef untuk menyimpan ID timer agar tetap ada di antara render
-const useTimers = () => {
-  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const gracePeriodTimerRef = useRef<NodeJS.Timeout | null>(null);
-
-  useEffect(() => {
-    // Cleanup saat komponen dibongkar
-    return () => {
-      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
-      if (gracePeriodTimerRef.current) clearTimeout(gracePeriodTimerRef.current);
-    };
-  }, []);
-
-  return { debounceTimerRef, gracePeriodTimerRef };
-};
-
 const Dashboard = () => {
   const { client, connectionStatus, publish } = useMqtt();
   const { logout } = useAuth();
@@ -40,8 +24,19 @@ const Dashboard = () => {
   const [threshold, setThreshold] = useState(40);
   const [chartData, setChartData] = useState<{ time: string; intensity: number }[]>([]);
 
-  const isUserInteracting = useRef(false);
-  const { debounceTimerRef, gracePeriodTimerRef } = useTimers();
+  // Ref untuk menyimpan nilai yang sedang ditunggu konfirmasinya
+  const expectedThreshold = useRef<number | null>(null);
+  // Ref untuk timer debounce dan safety net
+  const debounceTimer = useRef<NodeJS.Timeout | null>(null);
+  const safetyNetTimer = useRef<NodeJS.Timeout | null>(null);
+
+  // Cleanup timers saat komponen unmount
+  useEffect(() => {
+    return () => {
+      if (debounceTimer.current) clearTimeout(debounceTimer.current);
+      if (safetyNetTimer.current) clearTimeout(safetyNetTimer.current);
+    };
+  }, []);
 
   useEffect(() => {
     if (!client || connectionStatus !== "Connected") return;
@@ -55,8 +50,23 @@ const Dashboard = () => {
           setMode(data.mode?.toLowerCase() ?? "auto");
 
           const thresholdFromMqtt = data.threshold;
-          if (typeof thresholdFromMqtt === 'number' && !isUserInteracting.current) {
-            setThreshold(thresholdFromMqtt);
+
+          // Logika Konfirmasi Berbasis Nilai
+          if (expectedThreshold.current !== null) {
+            // Jika kita sedang menunggu konfirmasi,
+            // hanya terima nilai jika cocok dengan yang diharapkan.
+            if (thresholdFromMqtt === expectedThreshold.current) {
+              setThreshold(thresholdFromMqtt);
+              // Konfirmasi diterima! Berhenti menunggu.
+              expectedThreshold.current = null;
+              if (safetyNetTimer.current) clearTimeout(safetyNetTimer.current);
+            }
+            // Jika tidak cocok, abaikan saja. Itu data usang.
+          } else {
+            // Jika kita tidak sedang menunggu, terima nilai apa pun yang valid.
+            if (typeof thresholdFromMqtt === 'number') {
+              setThreshold(thresholdFromMqtt);
+            }
           }
 
           const now = new Date();
@@ -92,25 +102,26 @@ const Dashboard = () => {
   const handleSetThreshold = (newThreshold: number) => {
     // 1. Perbarui UI secara instan
     setThreshold(newThreshold);
-    
-    // 2. Tandai bahwa pengguna sedang berinteraksi
-    isUserInteracting.current = true;
 
-    // 3. Batalkan SEMUA timer yang sedang berjalan untuk memulai kembali
-    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
-    if (gracePeriodTimerRef.current) clearTimeout(gracePeriodTimerRef.current);
+    // Batalkan timer sebelumnya untuk memulai dari awal
+    if (debounceTimer.current) clearTimeout(debounceTimer.current);
+    if (safetyNetTimer.current) clearTimeout(safetyNetTimer.current);
 
-    // 4. Atur timer debounce baru
-    debounceTimerRef.current = setTimeout(() => {
+    // 2. Atur timer debounce
+    debounceTimer.current = setTimeout(() => {
+      // 3. Setelah jeda, kirim perintah dan mulai menunggu konfirmasi
+      expectedThreshold.current = newThreshold;
+      
       if (client && connectionStatus === "Connected") {
         const deviceThreshold = Math.round((newThreshold / 100) * 1023);
         publish(TOPIC_THRESHOLD, JSON.stringify({ threshold: deviceThreshold }));
       }
 
-      // 5. Atur timer "periode tenang" yang baru
-      gracePeriodTimerRef.current = setTimeout(() => {
-        isUserInteracting.current = false;
-      }, 3000); // Periode tenang 3 detik yang sangat aman
+      // 4. Atur jaring pengaman: berhenti menunggu setelah 5 detik
+      safetyNetTimer.current = setTimeout(() => {
+        expectedThreshold.current = null;
+      }, 5000); // Jaring pengaman 5 detik
+
     }, 500); // Jeda 0.5 detik setelah slider berhenti
   };
 
