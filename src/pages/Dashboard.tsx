@@ -96,7 +96,7 @@ const Dashboard = () => {
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           <LightIntensityGauge intensity={lightIntensity} />
-          <HouseStatus isOn={lampStatus} />
+          <HouseStatus lights={{ terrace: lampStatus }} />
           <ControlPanel
             mode={mode}
             setMode={handleSetMode}
