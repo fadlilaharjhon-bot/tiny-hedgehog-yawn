@@ -11,34 +11,50 @@ const HouseStatus = ({ isOn }: HouseStatusProps) => {
         <CardTitle>Visualisasi Lampu Teras</CardTitle>
       </CardHeader>
       <CardContent className="flex flex-col items-center justify-center p-6 gap-4">
-        <svg viewBox="0 0 200 150" xmlns="http://www.w3.org/2000/svg" className="w-full max-w-xs">
+        <svg viewBox="0 0 200 150" xmlns="http://www.w3.org/2000/svg" className="w-full max-w-xs rounded-lg">
           <defs>
-            <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
-              <feGaussianBlur stdDeviation="5" result="coloredBlur" />
+            <filter id="terrace-glow" x="-50%" y="-50%" width="200%" height="200%">
+              <feGaussianBlur in="SourceGraphic" stdDeviation="8" result="blur" />
               <feMerge>
-                <feMergeNode in="coloredBlur" />
+                <feMergeNode in="blur" />
                 <feMergeNode in="SourceGraphic" />
               </feMerge>
             </filter>
+            <clipPath id="house-clip">
+              <rect x="20" y="10" width="160" height="130" rx="5" />
+            </clipPath>
           </defs>
-          
-          {/* Terrace Area with Light Effect */}
-          <rect 
-            x="45" y="100" width="110" height="40" 
-            className={`transition-all duration-500 ${isOn ? 'fill-yellow-400/80' : 'fill-slate-700/50'}`}
-            style={{ filter: isOn ? 'url(#glow)' : 'none' }}
-          />
-          
-          {/* House Outline */}
-          <rect x="50" y="20" width="100" height="80" className="fill-slate-600/30 stroke-slate-400" strokeWidth="2" />
-          
-          {/* Interior Walls */}
-          <line x1="100" y1="20" x2="100" y2="100" className="stroke-slate-500" strokeWidth="1.5" />
-          <line x1="50" y1="60" x2="150" y2="60" className="stroke-slate-500" strokeWidth="1.5" />
 
-          {/* Lamp Icon */}
-          <circle cx="100" cy="110" r="5" className={isOn ? "fill-yellow-300" : "fill-slate-500"} />
-          <text x="100" y="135" textAnchor="middle" className="fill-slate-300 text-xs font-sans">TERAS</text>
+          {/* House Background */}
+          <rect x="20" y="10" width="160" height="130" rx="5" className="fill-slate-700" />
+
+          {/* Conditional Rendering for Interior */}
+          {isOn ? (
+            <>
+              {/* Interior with Terrace Glow */}
+              <g clipPath="url(#house-clip)">
+                {/* Terrace Glow Effect */}
+                <rect x="20" y="90" width="160" height="50" className="fill-yellow-400/80" filter="url(#terrace-glow)" />
+                
+                {/* Room Dividers */}
+                <line x1="100" y1="10" x2="100" y2="90" className="stroke-slate-500" strokeWidth="2" />
+                <line x1="20" y1="50" x2="100" y2="50" className="stroke-slate-500" strokeWidth="2" />
+                <line x1="100" y1="60" x2="180" y2="60" className="stroke-slate-500" strokeWidth="2" />
+              </g>
+              
+              {/* Terrace Label */}
+              <text x="100" y="125" textAnchor="middle" className="fill-slate-900 text-lg font-bold uppercase tracking-wider">Teras</text>
+            </>
+          ) : (
+            <>
+              {/* Dark Interior when Off */}
+              <rect x="20" y="10" width="160" height="130" rx="5" className="fill-black/80" />
+              <text x="100" y="85" textAnchor="middle" className="fill-slate-400 text-lg font-bold uppercase tracking-wider">Mati</text>
+            </>
+          )}
+
+          {/* House Outline */}
+          <rect x="20" y="10" width="160" height="130" rx="5" className="fill-none stroke-slate-400" strokeWidth="3" />
         </svg>
         
         <div className={`text-2xl font-bold ${isOn ? "text-green-400" : "text-red-400"}`}>
