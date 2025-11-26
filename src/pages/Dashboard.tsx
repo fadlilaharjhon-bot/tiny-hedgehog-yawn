@@ -36,17 +36,17 @@ const Dashboard = () => {
           try {
             const data = JSON.parse(payload.toString());
             
-            const intensityPercent = Math.round((data.intensity / 1023) * 100);
-            const thresholdPercent = Math.round((data.threshold / 1023) * 100);
+            // FIX: Langsung gunakan nilai dari payload, karena diasumsikan sudah dalam skala 0-100.
+            const intensityPercent = data.intensity;
+            const thresholdPercent = data.threshold;
 
             setLightIntensity(intensityPercent);
             setLampStatus(data.led === "ON");
             setMode(data.mode.toLowerCase());
-            // Hanya update threshold jika tidak sedang diubah oleh pengguna
-            // Ini membantu mencegah "snap back" minor
+            
+            // Cerdas memperbarui threshold untuk menghindari "snap back" saat slider digeser
             setThreshold(prev => {
-                // Cek jika perbedaannya kecil, untuk menghindari overwrite saat user menggeser
-                if (Math.abs(prev - thresholdPercent) > 2) {
+                if (Math.abs(prev - thresholdPercent) > 2) { // Hanya update jika perbedaannya signifikan
                     return thresholdPercent;
                 }
                 return prev;
@@ -95,7 +95,7 @@ const Dashboard = () => {
     }
   };
 
-  // Fungsi ini sekarang hanya mengubah state lokal, efek di atas yang akan mengirim data
+  // Fungsi ini hanya mengubah state lokal, efek di atas yang akan mengirim data
   const handleSetThreshold = (newThreshold: number) => {
     setThreshold(newThreshold);
   };
