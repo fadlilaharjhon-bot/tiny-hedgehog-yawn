@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import LightIntensityGauge from "@/components/LightIntensityGauge";
 import HouseStatus from "@/components/HouseStatus";
 import ControlPanel from "@/components/ControlPanel";
@@ -14,6 +14,9 @@ const TOPIC_STATUS = "POLINES/FADLI/IL";
 const TOPIC_COMMAND = "POLINES/PADLI/IL";
 const TOPIC_THRESHOLD = "POLINES/BADLI/IL"; // Topik khusus untuk threshold
 
+// Variabel untuk menyimpan timer debounce di luar komponen
+let debounceTimeout: ReturnType<typeof setTimeout> | null = null;
+
 const Dashboard = () => {
   const { client, connectionStatus, publish } = useMqtt();
   const { logout } = useAuth();
@@ -21,36 +24,35 @@ const Dashboard = () => {
   const [lightIntensity, setLightIntensity] = useState(0);
   const [lampStatus, setLampStatus] = useState(false);
   const [mode, setMode] = useState<"auto" | "manual">("auto");
-  const [threshold, setThreshold] = useState(40); // Nilai UI (0-100)
+  const [threshold, setThreshold] = useState(40);
   const [chartData, setChartData] = useState<{ time: string; intensity: number }[]>([]);
 
-  // Efek untuk menerima data status dari perangkat
+  // Ref untuk menandai apakah pengguna sedang aktif mengubah slider
+  const isUserUpdatingThreshold = useRef(false);
+
+  // Efek untuk menangani pesan MQTT yang masuk
   useEffect(() => {
     if (client && connectionStatus === "Connected") {
       client.subscribe(TOPIC_STATUS, (err) => {
         if (err) console.error(`Gagal subscribe ke topik ${TOPIC_STATUS}`);
       });
 
-      client.on("message", (topic, payload) => {
+      const messageHandler = (topic: string, payload: Buffer) => {
         if (topic === TOPIC_STATUS) {
           try {
             const data = JSON.parse(payload.toString());
             
-            // FIX: Langsung gunakan nilai dari payload, karena diasumsikan sudah dalam skala 0-100.
             const intensityPercent = data.intensity;
             const thresholdPercent = data.threshold;
 
             setLightIntensity(intensityPercent);
             setLampStatus(data.led === "ON");
             setMode(data.mode.toLowerCase());
-            
-            // Cerdas memperbarui threshold untuk menghindari "snap back" saat slider digeser
-            setThreshold(prev => {
-                if (Math.abs(prev - thresholdPercent) > 2) { // Hanya update jika perbedaannya signifikan
-                    return thresholdPercent;
-                }
-                return prev;
-            });
+
+            // Hanya perbarui threshold dari MQTT jika pengguna tidak sedang menggeser slider
+            if (!isUserUpdatingThreshold.current) {
+              setThreshold(thresholdPercent);
+            }
 
             const now = new Date();
             const newPoint = {
@@ -62,28 +64,19 @@ const Dashboard = () => {
             console.error("Gagal mem-parsing pesan masuk:", e);
           }
         }
-      });
+      };
+
+      client.on("message", messageHandler);
+
+      // Fungsi cleanup untuk menghapus listener saat komponen dibongkar
+      return () => {
+        client.off("message", messageHandler);
+        if (client.connected) {
+          client.unsubscribe(TOPIC_STATUS);
+        }
+      };
     }
-    return () => {
-      if (client) client.unsubscribe(TOPIC_STATUS);
-    };
   }, [client, connectionStatus]);
-
-  // Efek untuk mengirim data threshold dengan debounce
-  useEffect(() => {
-    const handler = setTimeout(() => {
-      if (client && connectionStatus === "Connected") {
-        // Konversi dari persentase (0-100) ke skala device (0-1023) sebelum mengirim
-        const deviceThreshold = Math.round((threshold / 100) * 1023);
-        publish(TOPIC_THRESHOLD, JSON.stringify({ threshold: deviceThreshold }));
-      }
-    }, 300); // Tunggu 300ms setelah user berhenti mengubah nilai
-
-    return () => {
-      clearTimeout(handler);
-    };
-  }, [threshold, client, connectionStatus, publish]);
-
 
   const handleSetMode = (newMode: "auto" | "manual") => {
     publish(TOPIC_COMMAND, JSON.stringify({ mode: newMode }));
@@ -95,9 +88,28 @@ const Dashboard = () => {
     }
   };
 
-  // Fungsi ini hanya mengubah state lokal, efek di atas yang akan mengirim data
+  // Fungsi ini menangani seluruh logika interaksi slider
   const handleSetThreshold = (newThreshold: number) => {
+    // 1. Perbarui UI secara langsung agar terasa responsif
     setThreshold(newThreshold);
+
+    // 2. Tandai bahwa pengguna sedang aktif mengubah nilai
+    isUserUpdatingThreshold.current = true;
+
+    // 3. Hapus timer debounce yang mungkin sedang berjalan
+    if (debounceTimeout) {
+      clearTimeout(debounceTimeout);
+    }
+
+    // 4. Atur timer baru
+    debounceTimeout = setTimeout(() => {
+      // Setelah 500ms tidak ada perubahan, kirim nilai akhir ke perangkat
+      const deviceThreshold = Math.round((newThreshold / 100) * 1023);
+      publish(TOPIC_THRESHOLD, JSON.stringify({ threshold: deviceThreshold }));
+
+      // 5. Hapus tanda, sehingga aplikasi kembali mendengarkan pembaruan dari perangkat
+      isUserUpdatingThreshold.current = false;
+    }, 500); // Jeda 500ms setelah perubahan terakhir
   };
 
   return (
