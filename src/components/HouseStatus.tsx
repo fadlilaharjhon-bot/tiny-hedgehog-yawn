@@ -67,8 +67,15 @@ const HouseStatus = ({ isOn }: HouseStatusProps) => {
               <rect x="81" y="11" width="58" height="138" className="fill-gray-800/30" />
               {/* Walls */}
               <path d="
-                M 80 10 V 160 M 140 10 V 160 M 10 80 H 180 M 80 40 H 140 M 80 120 H 140
+                M 80 10 V 160 M 140 10 V 160 M 10 80 H 190 M 140 80 H 190
               " className="stroke-slate-500" strokeWidth="1.5" />
+              
+              {/* Room Labels */}
+              <text x="45" y="45" textAnchor="middle" className="fill-slate-300 text-[8px] font-sans">K. Tidur</text>
+              <text x="45" y="120" textAnchor="middle" className="fill-slate-300 text-[8px] font-sans">R. Keluarga</text>
+              <text x="110" y="85" textAnchor="middle" className="fill-slate-300 text-[8px] font-sans">R. Tamu</text>
+              <text x="165" y="45" textAnchor="middle" className="fill-slate-300 text-[8px] font-sans">K. Mandi</text>
+              <text x="165" y="120" textAnchor="middle" className="fill-slate-300 text-[8px] font-sans">Dapur</text>
             </g>
           )}
 
@@ -76,7 +83,6 @@ const HouseStatus = ({ isOn }: HouseStatusProps) => {
           {!isOn && (
             <g>
               <rect x="10" y="10" width="180" height="150" className="fill-black/90" />
-              <text x="100" y="90" textAnchor="middle" className="fill-slate-400 text-lg font-bold uppercase tracking-wider">MATI</text>
             </g>
           )}
           
