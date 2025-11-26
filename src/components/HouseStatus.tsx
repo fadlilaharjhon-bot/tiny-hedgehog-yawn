@@ -91,10 +91,6 @@ const HouseStatus = ({ lights }: HouseStatusProps) => {
             <text x="165" y="120" textAnchor="middle" className="fill-slate-400 text-[8px] font-sans">Dapur</text>
           </g>
         </svg>
-        
-        <div className={`text-2xl font-bold ${isTerraceOn ? "text-green-400" : "text-red-400"}`}>
-          STATUS TERAS: {isTerraceOn ? "NYALA" : "MATI"}
-        </div>
       </CardContent>
     </Card>
   );
