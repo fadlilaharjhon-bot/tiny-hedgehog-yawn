@@ -38,7 +38,7 @@ const Login = () => {
             <Input
               id="username"
               type="text"
-              placeholder="admin"
+              placeholder="e.g. fadli"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               className="bg-slate-700 border-slate-600 placeholder:text-slate-500"
@@ -49,7 +49,7 @@ const Login = () => {
             <Input
               id="password"
               type="password"
-              placeholder="password"
+              placeholder="e.g. password123"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="bg-slate-700 border-slate-600 placeholder:text-slate-500"
@@ -57,7 +57,7 @@ const Login = () => {
           </div>
           {error && <p className="text-sm text-red-500 text-center">{error}</p>}
            <p className="text-xs text-slate-400 text-center pt-2">
-            Hint: Coba gunakan `admin` dan `password`
+            Hint: Coba `fadli`/`password123` atau `budi`/`password456`
           </p>
         </CardContent>
         <CardFooter>

@@ -18,7 +18,7 @@ const TOPIC_THRESHOLD_ECHO = "POLINES/BADLI/IL/ECHO";
 
 const Dashboard = () => {
   const { client, connectionStatus, publish } = useMqtt();
-  const { logout } = useAuth();
+  const { logout, currentUser } = useAuth();
 
   const [lightIntensity, setLightIntensity] = useState(0);
   const [lampStatus, setLampStatus] = useState(false);
@@ -99,7 +99,10 @@ const Dashboard = () => {
     <div className="min-h-screen w-full bg-gradient-to-br from-slate-900 to-blue-950 text-white p-4 md:p-8">
       <div className="container mx-auto">
         <div className="flex justify-between items-center mb-6">
-          <h1 className="text-3xl font-bold">Dasbor Lampu Teras</h1>
+          <div>
+            <h1 className="text-3xl font-bold">Dasbor Lampu Teras</h1>
+            {currentUser && <p className="text-slate-300">Selamat datang, {currentUser.username}!</p>}
+          </div>
           <div className="flex items-center gap-4">
             <div className="text-sm text-slate-300">
               MQTT: <span className={`font-bold ${isConnected ? 'text-green-400' : 'text-red-400'}`}>{connectionStatus}</span>
