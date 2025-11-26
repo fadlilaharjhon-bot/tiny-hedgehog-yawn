@@ -29,9 +29,10 @@ const Dashboard = () => {
   const [chartData, setChartData] = useState<{ time: string; intensity: number }[]>([]);
 
   const debounceTimer = useRef<NodeJS.Timeout | null>(null);
+  const isConnected = connectionStatus === "Connected";
 
   useEffect(() => {
-    if (!client || connectionStatus !== "Connected") return;
+    if (!client || !isConnected) return;
 
     // Berlangganan ke kedua topik
     client.subscribe(TOPIC_STATUS);
@@ -46,7 +47,6 @@ const Dashboard = () => {
           setLightIntensity(data.intensity ?? 0);
           setLampStatus(data.led === "ON");
           setMode(data.mode?.toLowerCase() ?? "auto");
-          // PENTING: Kita TIDAK lagi mengatur threshold dari topik ini
           
           const now = new Date();
           const newPoint = {
@@ -60,7 +60,6 @@ const Dashboard = () => {
         if (topic === TOPIC_THRESHOLD_ECHO) {
           const confirmedThreshold = data.threshold;
           if (typeof confirmedThreshold === 'number') {
-            // Ini adalah sumber kebenaran yang baru untuk slider
             setThreshold(confirmedThreshold);
           }
         }
@@ -74,7 +73,7 @@ const Dashboard = () => {
     return () => {
       client.off("message", messageHandler);
     };
-  }, [client, connectionStatus]);
+  }, [client, isConnected]);
 
   const handleSetMode = (newMode: "auto" | "manual") => {
     publish(TOPIC_COMMAND, JSON.stringify({ mode: newMode }));
@@ -87,21 +86,18 @@ const Dashboard = () => {
   };
 
   const handleSetThreshold = (newThreshold: number) => {
-    // Perbarui UI secara instan untuk responsivitas
     setThreshold(newThreshold);
 
-    // Batalkan timer debounce sebelumnya
     if (debounceTimer.current) {
       clearTimeout(debounceTimer.current);
     }
 
-    // Atur timer debounce baru untuk mengirim pesan
     debounceTimer.current = setTimeout(() => {
-      if (client && connectionStatus === "Connected") {
+      if (client && isConnected) {
         const deviceThreshold = Math.round((newThreshold / 100) * 1023);
         publish(TOPIC_THRESHOLD_SET, JSON.stringify({ threshold: deviceThreshold }));
       }
-    }, 400); // Jeda 400ms setelah slider berhenti
+    }, 400);
   };
 
   return (
@@ -111,7 +107,7 @@ const Dashboard = () => {
           <h1 className="text-3xl font-bold">Dasbor Lampu Teras</h1>
           <div className="flex items-center gap-4">
             <div className="text-sm text-slate-300">
-              MQTT: <span className={`font-bold ${connectionStatus === 'Connected' ? 'text-green-400' : 'text-red-400'}`}>{connectionStatus}</span>
+              MQTT: <span className={`font-bold ${isConnected ? 'text-green-400' : 'text-red-400'}`}>{connectionStatus}</span>
             </div>
             <Button variant="destructive" size="sm" onClick={logout}>
               <LogOut className="w-4 h-4 mr-2" />
@@ -128,6 +124,7 @@ const Dashboard = () => {
             toggleLamp={handleToggleLamp}
             threshold={threshold}
             setThreshold={handleSetThreshold}
+            disabled={!isConnected}
           />
           <div className="md:col-span-2 lg:col-span-3">
             <IntensityChart data={chartData} />
