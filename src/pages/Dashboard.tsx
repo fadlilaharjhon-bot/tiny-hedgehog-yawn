@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import LightIntensityGauge from "@/components/LightIntensityGauge";
-import HouseStatus from "@/components/HouseStatus"; // Mengganti LampStatus
+import HouseStatus from "@/components/HouseStatus";
 import ControlPanel from "@/components/ControlPanel";
 import IntensityChart from "@/components/IntensityChart";
 import { useMqtt } from "@/components/MqttProvider";
@@ -10,9 +10,10 @@ import { LogOut } from "lucide-react";
 
 const MAX_CHART_POINTS = 30;
 
-const TOPIC_STATUS = "POLINES/FADLI/IL";
-const TOPIC_COMMAND = "POLINES/PADLI/IL";
-const TOPIC_THRESHOLD = "POLINES/BADLI/IL";
+// Menyesuaikan topik MQTT berdasarkan diagram Node-RED
+const TOPIC_STATUS = "POLINES/FADLI/IL";    // Untuk menerima data status dari ESP8266
+const TOPIC_COMMAND = "POLINES/PADLI/IL";   // Untuk mengirim perintah mode & toggle LED
+const TOPIC_THRESHOLD = "POLINES/BADLI/IL"; // Untuk mengirim nilai threshold
 
 const Dashboard = () => {
   const { client, connectionStatus, publish } = useMqtt();
@@ -26,8 +27,9 @@ const Dashboard = () => {
 
   useEffect(() => {
     if (client && connectionStatus === "Connected") {
+      // Subscribe ke topik status
       client.subscribe(TOPIC_STATUS, (err) => {
-        if (err) console.error(`Failed to subscribe to topic ${TOPIC_STATUS}`);
+        if (err) console.error(`Gagal subscribe ke topik ${TOPIC_STATUS}`);
       });
 
       client.on("message", (topic, payload) => {
@@ -48,7 +50,7 @@ const Dashboard = () => {
             };
             setChartData((prevData) => [...prevData, newPoint].slice(-MAX_CHART_POINTS));
           } catch (e) {
-            console.error("Failed to parse incoming message:", e);
+            console.error("Gagal mem-parsing pesan masuk:", e);
           }
         }
       });
@@ -58,16 +60,19 @@ const Dashboard = () => {
     };
   }, [client, connectionStatus]);
 
+  // Mengirim perintah ganti mode ke topik command
   const handleSetMode = (newMode: "auto" | "manual") => {
     publish(TOPIC_COMMAND, JSON.stringify({ mode: newMode }));
   };
 
+  // Mengirim perintah toggle lampu ke topik command
   const handleToggleLamp = () => {
     if (mode === 'manual') {
       publish(TOPIC_COMMAND, JSON.stringify({ led: "toggle" }));
     }
   };
 
+  // Mengirim nilai threshold baru ke topik threshold
   const handleSetThreshold = (newThreshold: number) => {
     setThreshold(newThreshold);
     const scaledThreshold = Math.round(newThreshold / 10.23);
