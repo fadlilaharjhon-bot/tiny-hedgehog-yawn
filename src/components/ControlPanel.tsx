@@ -8,7 +8,7 @@ interface ControlPanelProps {
   mode: "auto" | "manual";
   setMode: (mode: "auto" | "manual") => void;
   toggleLamp: () => void;
-  threshold: number;
+  threshold: number; // Menerima nilai 0-100
   setThreshold: (value: number) => void;
 }
 
@@ -53,13 +53,13 @@ const ControlPanel = ({
 
         <div>
           <div className="flex justify-between mb-2">
-            <Label htmlFor="threshold-slider">Ambang Batas (Threshold)</Label>
-            <span className="font-mono">{threshold}</span>
+            <Label htmlFor="threshold-slider">Ambang Batas (%)</Label>
+            <span className="font-mono">{threshold}%</span>
           </div>
           <Slider
             id="threshold-slider"
             min={0}
-            max={1023}
+            max={100}
             step={1}
             value={[threshold]}
             onValueChange={(value) => setThreshold(value[0])}

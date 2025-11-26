@@ -11,7 +11,7 @@ import {
 
 interface ChartData {
   time: string;
-  intensity: number;
+  intensity: number; // Menerima nilai 0-100
 }
 
 interface IntensityChartProps {
@@ -22,7 +22,7 @@ const IntensityChart = ({ data }: IntensityChartProps) => {
   return (
     <Card className="bg-slate-800/50 backdrop-blur-sm border-slate-700 text-white">
       <CardHeader>
-        <CardTitle>Grafik Intensitas Real-time</CardTitle>
+        <CardTitle>Grafik Intensitas Real-time (%)</CardTitle>
       </CardHeader>
       <CardContent>
         <div className="h-64 w-full">
@@ -30,7 +30,7 @@ const IntensityChart = ({ data }: IntensityChartProps) => {
             <LineChart data={data}>
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(255, 255, 255, 0.2)" />
               <XAxis dataKey="time" stroke="rgba(255, 255, 255, 0.7)" />
-              <YAxis domain={[0, 1023]} stroke="rgba(255, 255, 255, 0.7)" />
+              <YAxis domain={[0, 100]} stroke="rgba(255, 255, 255, 0.7)" unit="%" />
               <Tooltip
                 contentStyle={{
                   backgroundColor: "rgba(20, 20, 30, 0.8)",
@@ -38,6 +38,7 @@ const IntensityChart = ({ data }: IntensityChartProps) => {
                   color: "white"
                 }}
                 labelStyle={{ color: "#aaa" }}
+                formatter={(value: number) => `${value}%`}
               />
               <Line
                 type="monotone"

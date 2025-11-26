@@ -1,12 +1,12 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 interface LightIntensityGaugeProps {
-  intensity: number;
+  intensity: number; // Menerima nilai 0-100
 }
 
 const LightIntensityGauge = ({ intensity }: LightIntensityGaugeProps) => {
-  const MAX_INTENSITY = 1023;
-  const percentage = (intensity / MAX_INTENSITY) * 100;
+  const MAX_INTENSITY = 100;
+  const percentage = Math.min(Math.max(intensity, 0), MAX_INTENSITY);
   const rotation = (percentage / 100) * 180 - 90;
 
   const getBackgroundColor = (value: number) => {
@@ -35,10 +35,7 @@ const LightIntensityGauge = ({ intensity }: LightIntensityGaugeProps) => {
             style={{ transform: `translateX(-50%) rotate(${rotation}deg)` }}
           ></div>
         </div>
-        <div className="text-3xl font-bold">{intensity}</div>
-        <div className="text-sm text-slate-400">
-          ({percentage.toFixed(1)}%)
-        </div>
+        <div className="text-3xl font-bold">{percentage}%</div>
       </CardContent>
     </Card>
   );

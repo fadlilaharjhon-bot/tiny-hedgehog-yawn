@@ -10,10 +10,9 @@ import { LogOut } from "lucide-react";
 
 const MAX_CHART_POINTS = 30;
 
-// Menyesuaikan topik MQTT berdasarkan diagram Node-RED
-const TOPIC_STATUS = "POLINES/FADLI/IL";    // Untuk menerima data status dari ESP8266
-const TOPIC_COMMAND = "POLINES/PADLI/IL";   // Untuk mengirim perintah mode & toggle LED
-const TOPIC_THRESHOLD = "POLINES/BADLI/IL"; // Untuk mengirim nilai threshold
+const TOPIC_STATUS = "POLINES/FADLI/IL";
+const TOPIC_COMMAND = "POLINES/PADLI/IL";
+const TOPIC_THRESHOLD = "POLINES/BADLI/IL";
 
 const Dashboard = () => {
   const { client, connectionStatus, publish } = useMqtt();
@@ -22,12 +21,11 @@ const Dashboard = () => {
   const [lightIntensity, setLightIntensity] = useState(0);
   const [lampStatus, setLampStatus] = useState(false);
   const [mode, setMode] = useState<"auto" | "manual">("auto");
-  const [threshold, setThreshold] = useState(400);
+  const [threshold, setThreshold] = useState(40); // Default threshold 40%
   const [chartData, setChartData] = useState<{ time: string; intensity: number }[]>([]);
 
   useEffect(() => {
     if (client && connectionStatus === "Connected") {
-      // Subscribe ke topik status
       client.subscribe(TOPIC_STATUS, (err) => {
         if (err) console.error(`Gagal subscribe ke topik ${TOPIC_STATUS}`);
       });
@@ -36,17 +34,20 @@ const Dashboard = () => {
         if (topic === TOPIC_STATUS) {
           try {
             const data = JSON.parse(payload.toString());
-            const scaledIntensity = Math.round(data.intensity * 10.23);
-            setLightIntensity(scaledIntensity);
+            
+            // Konversi dari skala device (0-1023) ke persentase (0-100)
+            const intensityPercent = Math.round((data.intensity / 1023) * 100);
+            const thresholdPercent = Math.round((data.threshold / 1023) * 100);
+
+            setLightIntensity(intensityPercent);
             setLampStatus(data.led === "ON");
             setMode(data.mode.toLowerCase());
-            const scaledThreshold = Math.round(data.threshold * 10.23);
-            setThreshold(scaledThreshold);
+            setThreshold(thresholdPercent);
 
             const now = new Date();
             const newPoint = {
               time: `${now.getHours()}:${now.getMinutes()}:${now.getSeconds()}`,
-              intensity: scaledIntensity,
+              intensity: intensityPercent,
             };
             setChartData((prevData) => [...prevData, newPoint].slice(-MAX_CHART_POINTS));
           } catch (e) {
@@ -60,23 +61,21 @@ const Dashboard = () => {
     };
   }, [client, connectionStatus]);
 
-  // Mengirim perintah ganti mode ke topik command
   const handleSetMode = (newMode: "auto" | "manual") => {
     publish(TOPIC_COMMAND, JSON.stringify({ mode: newMode }));
   };
 
-  // Mengirim perintah toggle lampu ke topik command
   const handleToggleLamp = () => {
     if (mode === 'manual') {
       publish(TOPIC_COMMAND, JSON.stringify({ led: "toggle" }));
     }
   };
 
-  // Mengirim nilai threshold baru ke topik threshold
   const handleSetThreshold = (newThreshold: number) => {
     setThreshold(newThreshold);
-    const scaledThreshold = Math.round(newThreshold / 10.23);
-    publish(TOPIC_THRESHOLD, JSON.stringify({ threshold: scaledThreshold }));
+    // Konversi dari persentase (0-100) ke skala device (0-1023) sebelum mengirim
+    const deviceThreshold = Math.round((newThreshold / 100) * 1023);
+    publish(TOPIC_THRESHOLD, JSON.stringify({ threshold: deviceThreshold }));
   };
 
   return (
