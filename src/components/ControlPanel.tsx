@@ -7,7 +7,7 @@ interface ControlPanelProps {
   mode: "auto" | "manual";
   setMode: (mode: "auto" | "manual") => void;
   isLampOn: boolean;
-  setLampOn: (isOn: boolean) => void;
+  toggleLamp: () => void; // Mengganti setLampOn menjadi toggleLamp
   threshold: number;
   setThreshold: (value: number) => void;
 }
@@ -16,14 +16,14 @@ const ControlPanel = ({
   mode,
   setMode,
   isLampOn,
-  setLampOn,
+  toggleLamp,
   threshold,
   setThreshold,
 }: ControlPanelProps) => {
   const isManualMode = mode === "manual";
 
   return (
-    <Card>
+    <Card className="bg-slate-800/50 backdrop-blur-sm border-slate-700 text-white">
       <CardHeader>
         <CardTitle>Panel Kontrol</CardTitle>
       </CardHeader>
@@ -43,7 +43,7 @@ const ControlPanel = ({
           <Switch
             id="manual-switch"
             checked={isLampOn}
-            onCheckedChange={setLampOn}
+            onCheckedChange={toggleLamp} // Memanggil fungsi toggle saat di-klik
             disabled={!isManualMode}
           />
         </div>

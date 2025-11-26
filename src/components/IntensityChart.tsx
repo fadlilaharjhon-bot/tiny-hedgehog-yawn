@@ -20,7 +20,7 @@ interface IntensityChartProps {
 
 const IntensityChart = ({ data }: IntensityChartProps) => {
   return (
-    <Card>
+    <Card className="bg-slate-800/50 backdrop-blur-sm border-slate-700 text-white">
       <CardHeader>
         <CardTitle>Grafik Intensitas Real-time</CardTitle>
       </CardHeader>
@@ -28,19 +28,21 @@ const IntensityChart = ({ data }: IntensityChartProps) => {
         <div className="h-64 w-full">
           <ResponsiveContainer>
             <LineChart data={data}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="time" />
-              <YAxis domain={[0, 1023]} />
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255, 255, 255, 0.2)" />
+              <XAxis dataKey="time" stroke="rgba(255, 255, 255, 0.7)" />
+              <YAxis domain={[0, 1023]} stroke="rgba(255, 255, 255, 0.7)" />
               <Tooltip
                 contentStyle={{
-                  backgroundColor: "hsl(var(--background))",
-                  borderColor: "hsl(var(--border))",
+                  backgroundColor: "rgba(20, 20, 30, 0.8)",
+                  borderColor: "rgba(255, 255, 255, 0.3)",
+                  color: "white"
                 }}
+                labelStyle={{ color: "#aaa" }}
               />
               <Line
                 type="monotone"
                 dataKey="intensity"
-                stroke="hsl(var(--primary))"
+                stroke="#38bdf8"
                 strokeWidth={2}
                 dot={false}
               />

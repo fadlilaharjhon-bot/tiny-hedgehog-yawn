@@ -10,10 +10,10 @@ const Index = () => {
           Aplikasi Pemantauan Lampu
         </h1>
         <p className="text-lg text-gray-600 dark:text-gray-300">
-          Selamat datang! Klik tombol di bawah untuk melihat dasbor.
+          Selamat datang! Silakan login untuk melanjutkan ke dasbor.
         </p>
-        <Link to="/dashboard">
-          <Button size="lg">Buka Dasbor</Button>
+        <Link to="/login">
+          <Button size="lg">Login</Button>
         </Link>
       </div>
       <div className="absolute bottom-4">
