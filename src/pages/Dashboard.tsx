@@ -10,9 +10,13 @@ import { LogOut } from "lucide-react";
 
 const MAX_CHART_POINTS = 30;
 
+// Topik yang sudah ada
 const TOPIC_STATUS = "POLINES/FADLI/IL";
 const TOPIC_COMMAND = "POLINES/PADLI/IL";
-const TOPIC_THRESHOLD = "POLINES/BADLI/IL";
+const TOPIC_THRESHOLD_SET = "POLINES/BADLI/IL";
+
+// Topik BARU khusus untuk konfirmasi threshold dari Node-RED
+const TOPIC_THRESHOLD_ECHO = "POLINES/BADLI/IL/ECHO";
 
 const Dashboard = () => {
   const { client, connectionStatus, publish } = useMqtt();
@@ -24,64 +28,47 @@ const Dashboard = () => {
   const [threshold, setThreshold] = useState(40);
   const [chartData, setChartData] = useState<{ time: string; intensity: number }[]>([]);
 
-  // Ref untuk menyimpan nilai yang sedang ditunggu konfirmasinya
-  const expectedThreshold = useRef<number | null>(null);
-  // Ref untuk timer debounce dan safety net
   const debounceTimer = useRef<NodeJS.Timeout | null>(null);
-  const safetyNetTimer = useRef<NodeJS.Timeout | null>(null);
-
-  // Cleanup timers saat komponen unmount
-  useEffect(() => {
-    return () => {
-      if (debounceTimer.current) clearTimeout(debounceTimer.current);
-      if (safetyNetTimer.current) clearTimeout(safetyNetTimer.current);
-    };
-  }, []);
 
   useEffect(() => {
     if (!client || connectionStatus !== "Connected") return;
 
+    // Berlangganan ke kedua topik
+    client.subscribe(TOPIC_STATUS);
+    client.subscribe(TOPIC_THRESHOLD_ECHO);
+
     const messageHandler = (topic: string, payload: Buffer) => {
-      if (topic === TOPIC_STATUS) {
-        try {
-          const data = JSON.parse(payload.toString());
+      try {
+        const data = JSON.parse(payload.toString());
+
+        // Menangani pesan dari topik status umum
+        if (topic === TOPIC_STATUS) {
           setLightIntensity(data.intensity ?? 0);
           setLampStatus(data.led === "ON");
           setMode(data.mode?.toLowerCase() ?? "auto");
-
-          const thresholdFromMqtt = data.threshold;
-
-          // Logika Konfirmasi Berbasis Nilai
-          if (expectedThreshold.current !== null) {
-            // Jika kita sedang menunggu konfirmasi,
-            // hanya terima nilai jika cocok dengan yang diharapkan.
-            if (thresholdFromMqtt === expectedThreshold.current) {
-              setThreshold(thresholdFromMqtt);
-              // Konfirmasi diterima! Berhenti menunggu.
-              expectedThreshold.current = null;
-              if (safetyNetTimer.current) clearTimeout(safetyNetTimer.current);
-            }
-            // Jika tidak cocok, abaikan saja. Itu data usang.
-          } else {
-            // Jika kita tidak sedang menunggu, terima nilai apa pun yang valid.
-            if (typeof thresholdFromMqtt === 'number') {
-              setThreshold(thresholdFromMqtt);
-            }
-          }
-
+          // PENTING: Kita TIDAK lagi mengatur threshold dari topik ini
+          
           const now = new Date();
           const newPoint = {
             time: `${now.getHours()}:${now.getMinutes()}:${now.getSeconds()}`,
             intensity: data.intensity ?? 0,
           };
           setChartData((prevData) => [...prevData, newPoint].slice(-MAX_CHART_POINTS));
-        } catch (e) {
-          console.error("Gagal mem-parsing pesan masuk:", e);
         }
+
+        // Menangani pesan dari topik konfirmasi threshold
+        if (topic === TOPIC_THRESHOLD_ECHO) {
+          const confirmedThreshold = data.threshold;
+          if (typeof confirmedThreshold === 'number') {
+            // Ini adalah sumber kebenaran yang baru untuk slider
+            setThreshold(confirmedThreshold);
+          }
+        }
+      } catch (e) {
+        console.error(`Gagal mem-parsing pesan dari topik ${topic}:`, e);
       }
     };
 
-    client.subscribe(TOPIC_STATUS);
     client.on("message", messageHandler);
 
     return () => {
@@ -100,29 +87,21 @@ const Dashboard = () => {
   };
 
   const handleSetThreshold = (newThreshold: number) => {
-    // 1. Perbarui UI secara instan
+    // Perbarui UI secara instan untuk responsivitas
     setThreshold(newThreshold);
 
-    // Batalkan timer sebelumnya untuk memulai dari awal
-    if (debounceTimer.current) clearTimeout(debounceTimer.current);
-    if (safetyNetTimer.current) clearTimeout(safetyNetTimer.current);
+    // Batalkan timer debounce sebelumnya
+    if (debounceTimer.current) {
+      clearTimeout(debounceTimer.current);
+    }
 
-    // 2. Atur timer debounce
+    // Atur timer debounce baru untuk mengirim pesan
     debounceTimer.current = setTimeout(() => {
-      // 3. Setelah jeda, kirim perintah dan mulai menunggu konfirmasi
-      expectedThreshold.current = newThreshold;
-      
       if (client && connectionStatus === "Connected") {
         const deviceThreshold = Math.round((newThreshold / 100) * 1023);
-        publish(TOPIC_THRESHOLD, JSON.stringify({ threshold: deviceThreshold }));
+        publish(TOPIC_THRESHOLD_SET, JSON.stringify({ threshold: deviceThreshold }));
       }
-
-      // 4. Atur jaring pengaman: berhenti menunggu setelah 5 detik
-      safetyNetTimer.current = setTimeout(() => {
-        expectedThreshold.current = null;
-      }, 5000); // Jaring pengaman 5 detik
-
-    }, 500); // Jeda 0.5 detik setelah slider berhenti
+    }, 400); // Jeda 400ms setelah slider berhenti
   };
 
   return (
