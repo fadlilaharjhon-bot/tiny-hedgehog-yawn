@@ -39,9 +39,13 @@ const Dashboard = () => {
           setLampStatus(data.led === "ON");
           setMode(data.mode.toLowerCase());
 
-          // Hanya perbarui threshold dari MQTT jika pengguna tidak sedang menggeser slider
-          if (!isUserInteracting.current) {
-            setThreshold(data.threshold);
+          const thresholdFromMqtt = data.threshold;
+          // Lakukan validasi sebelum mengatur state
+          if (typeof thresholdFromMqtt === 'number') {
+            // Hanya perbarui threshold dari MQTT jika pengguna tidak sedang menggeser slider
+            if (!isUserInteracting.current) {
+              setThreshold(thresholdFromMqtt);
+            }
           }
 
           const now = new Date();
@@ -64,7 +68,7 @@ const Dashboard = () => {
     };
   }, [client, connectionStatus]);
 
-  // Efek untuk mengirim data threshold dengan debounce DAN grace period
+  // Efek untuk mengirim data threshold dengan debounce DAN grace period yang lebih lama
   useEffect(() => {
     if (!isUserInteracting.current) {
       return;
@@ -75,12 +79,12 @@ const Dashboard = () => {
         const deviceThreshold = Math.round((threshold / 100) * 1023);
         publish(TOPIC_THRESHOLD, JSON.stringify({ threshold: deviceThreshold }));
 
-        // Mulai "grace period": tunggu 1 detik sebelum mendengarkan update MQTT lagi
+        // Mulai "grace period": tunggu 2 detik sebelum mendengarkan update MQTT lagi
+        // Ini memberi waktu yang cukup bagi Node-RED untuk memproses dan mengirim kembali status baru.
         setTimeout(() => {
           isUserInteracting.current = false;
-        }, 1000); // Grace period 1 detik
+        }, 2000); // Grace period 2 detik (lebih aman)
       } else {
-        // Jika koneksi terputus saat debouncing, reset flag
         isUserInteracting.current = false;
       }
     }, 500); // Debounce 500ms
@@ -101,7 +105,7 @@ const Dashboard = () => {
   };
 
   const handleSetThreshold = (newThreshold: number) => {
-    // Tandai bahwa interaksi dimulai dan perbarui UI
+    // Tandai bahwa interaksi dimulai dan perbarui UI secara instan
     isUserInteracting.current = true;
     setThreshold(newThreshold);
   };
