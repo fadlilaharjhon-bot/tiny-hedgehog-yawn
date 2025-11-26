@@ -12,7 +12,7 @@ const MAX_CHART_POINTS = 30;
 
 const TOPIC_STATUS = "POLINES/FADLI/IL";
 const TOPIC_COMMAND = "POLINES/PADLI/IL";
-const TOPIC_THRESHOLD = "POLINES/BADLI/IL";
+const TOPIC_THRESHOLD = "POLINES/BADLI/IL"; // Topik khusus untuk threshold
 
 const Dashboard = () => {
   const { client, connectionStatus, publish } = useMqtt();
@@ -21,9 +21,10 @@ const Dashboard = () => {
   const [lightIntensity, setLightIntensity] = useState(0);
   const [lampStatus, setLampStatus] = useState(false);
   const [mode, setMode] = useState<"auto" | "manual">("auto");
-  const [threshold, setThreshold] = useState(40); // Default threshold 40%
+  const [threshold, setThreshold] = useState(40); // Nilai UI (0-100)
   const [chartData, setChartData] = useState<{ time: string; intensity: number }[]>([]);
 
+  // Efek untuk menerima data status dari perangkat
   useEffect(() => {
     if (client && connectionStatus === "Connected") {
       client.subscribe(TOPIC_STATUS, (err) => {
@@ -35,14 +36,21 @@ const Dashboard = () => {
           try {
             const data = JSON.parse(payload.toString());
             
-            // Konversi dari skala device (0-1023) ke persentase (0-100)
             const intensityPercent = Math.round((data.intensity / 1023) * 100);
             const thresholdPercent = Math.round((data.threshold / 1023) * 100);
 
             setLightIntensity(intensityPercent);
             setLampStatus(data.led === "ON");
             setMode(data.mode.toLowerCase());
-            setThreshold(thresholdPercent);
+            // Hanya update threshold jika tidak sedang diubah oleh pengguna
+            // Ini membantu mencegah "snap back" minor
+            setThreshold(prev => {
+                // Cek jika perbedaannya kecil, untuk menghindari overwrite saat user menggeser
+                if (Math.abs(prev - thresholdPercent) > 2) {
+                    return thresholdPercent;
+                }
+                return prev;
+            });
 
             const now = new Date();
             const newPoint = {
@@ -61,6 +69,22 @@ const Dashboard = () => {
     };
   }, [client, connectionStatus]);
 
+  // Efek untuk mengirim data threshold dengan debounce
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      if (client && connectionStatus === "Connected") {
+        // Konversi dari persentase (0-100) ke skala device (0-1023) sebelum mengirim
+        const deviceThreshold = Math.round((threshold / 100) * 1023);
+        publish(TOPIC_THRESHOLD, JSON.stringify({ threshold: deviceThreshold }));
+      }
+    }, 300); // Tunggu 300ms setelah user berhenti mengubah nilai
+
+    return () => {
+      clearTimeout(handler);
+    };
+  }, [threshold, client, connectionStatus, publish]);
+
+
   const handleSetMode = (newMode: "auto" | "manual") => {
     publish(TOPIC_COMMAND, JSON.stringify({ mode: newMode }));
   };
@@ -71,11 +95,9 @@ const Dashboard = () => {
     }
   };
 
+  // Fungsi ini sekarang hanya mengubah state lokal, efek di atas yang akan mengirim data
   const handleSetThreshold = (newThreshold: number) => {
     setThreshold(newThreshold);
-    // Konversi dari persentase (0-100) ke skala device (0-1023) sebelum mengirim
-    const deviceThreshold = Math.round((newThreshold / 100) * 1023);
-    publish(TOPIC_THRESHOLD, JSON.stringify({ threshold: deviceThreshold }));
   };
 
   return (
