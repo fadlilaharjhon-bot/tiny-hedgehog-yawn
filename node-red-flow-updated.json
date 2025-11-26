@@ -1,0 +1,868 @@
+[
+    {
+        "id": "b821a9320b0e9b6c",
+        "type": "tab",
+        "label": "ESP8266 LDR Auto Manual Threshold",
+        "disabled": false,
+        "info": ""
+    },
+    {
+        "id": "882dcdc04ef8264a",
+        "type": "serial in",
+        "z": "b821a9320b0e9b6c",
+        "name": "ESP8266 Serial In",
+        "serial": "c9d1b2f3a1d0e4b5",
+        "x": 190,
+        "y": 160,
+        "wires": [
+            [
+                "063299203d7084c0",
+                "b37a4ddea93b7bbd"
+            ]
+        ]
+    },
+    {
+        "id": "063299203d7084c0",
+        "type": "json",
+        "z": "b821a9320b0e9b6c",
+        "name": "",
+        "property": "payload",
+        "action": "",
+        "pretty": false,
+        "x": 450,
+        "y": 160,
+        "wires": [
+            [
+                "ff3da88333efd05d",
+                "fbe6f52b3218efaa",
+                "ec4a77ef4c87cfc2"
+            ]
+        ]
+    },
+    {
+        "id": "745b8983883736f3",
+        "type": "ui_text",
+        "z": "b821a9320b0e9b6c",
+        "group": "7c39d4dcfd2174cc",
+        "order": 2,
+        "width": 10,
+        "height": 2,
+        "name": "Status",
+        "label": "LED Status:",
+        "format": "{{msg.payload.led}} | Mode: {{msg.payload.mode}} | Cahaya: {{msg.payload.intensity}}%",
+        "layout": "row-center",
+        "className": "",
+        "style": false,
+        "font": "",
+        "fontSize": "",
+        "color": "#000000",
+        "x": 710,
+        "y": 40,
+        "wires": []
+    },
+    {
+        "id": "2a4cf9e9a89224aa",
+        "type": "ui_button",
+        "z": "b821a9320b0e9b6c",
+        "name": "AUTO",
+        "group": "7c39d4dcfd2174cc",
+        "order": 7,
+        "width": 2,
+        "height": 1,
+        "passthru": false,
+        "label": "AUTO",
+        "payload": "{\"mode\":\"auto\"}",
+        "payloadType": "str",
+        "x": 190,
+        "y": 260,
+        "wires": [
+            [
+                "5f0bb4de795a3022"
+            ]
+        ]
+    },
+    {
+        "id": "f6b2ebd8fb839eca",
+        "type": "ui_button",
+        "z": "b821a9320b0e9b6c",
+        "name": "MANUAL",
+        "group": "7c39d4dcfd2174cc",
+        "order": 9,
+        "width": 2,
+        "height": 1,
+        "passthru": false,
+        "label": "MANUAL",
+        "payload": "{\"mode\":\"manual\"}",
+        "payloadType": "str",
+        "x": 200,
+        "y": 300,
+        "wires": [
+            [
+                "5f0bb4de795a3022"
+            ]
+        ]
+    },
+    {
+        "id": "61edd4686b1ed44e",
+        "type": "ui_button",
+        "z": "b821a9320b0e9b6c",
+        "name": "LED Manual",
+        "group": "7c39d4dcfd2174cc",
+        "order": 11,
+        "width": 2,
+        "height": 1,
+        "passthru": false,
+        "label": "PB LED",
+        "tooltip": "",
+        "color": "",
+        "bgcolor": "",
+        "className": "",
+        "icon": "",
+        "payload": "{\"led\":\"toggle\"}",
+        "payloadType": "str",
+        "topic": "",
+        "topicType": "str",
+        "x": 190,
+        "y": 340,
+        "wires": [
+            [
+                "5f0bb4de795a3022"
+            ]
+        ]
+    },
+    {
+        "id": "155b0481a1ede289",
+        "type": "ui_slider",
+        "z": "b821a9320b0e9b6c",
+        "name": "Threshold",
+        "label": "Threshold (%)",
+        "tooltip": "",
+        "group": "7c39d4dcfd2174cc",
+        "order": 14,
+        "width": 6,
+        "height": 1,
+        "passthru": false,
+        "outs": "end",
+        "topic": "",
+        "topicType": "str",
+        "min": 0,
+        "max": "100",
+        "step": 1,
+        "className": "",
+        "x": 360,
+        "y": 500,
+        "wires": [
+            [
+                "94642b6466394c0e"
+            ]
+        ]
+    },
+    {
+        "id": "94642b6466394c0e",
+        "type": "function",
+        "z": "b821a9320b0e9b6c",
+        "name": "Process & Echo Threshold",
+        "func": "let percentageValue;\nlet deviceValue;\n\n// Cek apakah payload dari MQTT (object) atau UI Slider (number)\nif (typeof msg.payload === 'object' && msg.payload !== null && msg.payload.hasOwnProperty('threshold')) {\n    // Dari MQTT Web App: payload adalah 0-1023\n    deviceValue = msg.payload.threshold;\n    percentageValue = Math.round((deviceValue / 1023) * 100);\n} else {\n    // Dari UI Slider: payload adalah persentase 0-100\n    percentageValue = Number(msg.payload);\n    deviceValue = Math.round((percentageValue / 100) * 1023);\n}\n\nif (isNaN(percentageValue) || isNaN(deviceValue)) {\n    node.warn(\"Invalid threshold value received: \" + JSON.stringify(msg.payload));\n    return null;\n}\n\n// Simpan nilai PERSENTASE ke flow context untuk GSheet\nflow.set(\"threshold\", percentageValue);\n\n// Siapkan pesan untuk Output 1 (ke ESP)\nlet msgForEsp = { payload: { threshold: deviceValue } };\n\n// Siapkan pesan untuk Output 2 (echo ke Web App)\nlet msgForEcho = { payload: { threshold: percentageValue } };\n\n// Kirim kedua pesan ke output masing-masing\nreturn [msgForEsp, msgForEcho];",
+        "outputs": 2,
+        "timeout": "",
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 390,
+        "y": 560,
+        "wires": [
+            [
+                "5f0bb4de795a3022"
+            ],
+            [
+                "a1b2c3d4e5f6g7h8"
+            ]
+        ]
+    },
+    {
+        "id": "5f0bb4de795a3022",
+        "type": "serial out",
+        "z": "b821a9320b0e9b6c",
+        "name": "ESP8266 Serial Out",
+        "serial": "c9d1b2f3a1d0e4b5",
+        "x": 800,
+        "y": 300,
+        "wires": []
+    },
+    {
+        "id": "17119410ee713427",
+        "type": "ui_gauge",
+        "z": "b821a9320b0e9b6c",
+        "name": "Gauge Intensitas",
+        "group": "7c39d4dcfd2174cc",
+        "order": 17,
+        "width": 4,
+        "height": 3,
+        "gtype": "gage",
+        "title": "Intensitas (%)",
+        "label": "%",
+        "format": "{{value}}",
+        "min": 0,
+        "max": "100",
+        "colors": [
+            "#00b500",
+            "#e6e600",
+            "#ca3838"
+        ],
+        "seg1": "",
+        "seg2": "",
+        "x": 990,
+        "y": 200,
+        "wires": []
+    },
+    {
+        "id": "c724ec0c4b2b48b3",
+        "type": "ui_chart",
+        "z": "b821a9320b0e9b6c",
+        "name": "Grafik Intensitas",
+        "group": "7c39d4dcfd2174cc",
+        "order": 24,
+        "width": 6,
+        "height": 3,
+        "label": "Grafik Intensitas Cahaya",
+        "chartType": "line",
+        "legend": "false",
+        "xformat": "HH:mm:ss",
+        "interpolate": "linear",
+        "nodata": "Belum ada data",
+        "dot": false,
+        "ymin": 0,
+        "ymax": 100,
+        "removeOlder": 1,
+        "removeOlderPoints": "60",
+        "removeOlderUnit": "60",
+        "cutout": 0,
+        "useOneColor": false,
+        "useUTC": false,
+        "colors": [
+            "#1f77b4",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000",
+            "#000000"
+        ],
+        "outputs": 1,
+        "useDifferentColor": false,
+        "className": "",
+        "x": 980,
+        "y": 240,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "ff3da88333efd05d",
+        "type": "function",
+        "z": "b821a9320b0e9b6c",
+        "name": "function 2",
+        "func": "msg.payload = msg.payload.intensity;\nreturn msg;",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 760,
+        "y": 200,
+        "wires": [
+            [
+                "17119410ee713427",
+                "c724ec0c4b2b48b3"
+            ]
+        ]
+    },
+    {
+        "id": "a6e792948af0e3cf",
+        "type": "GSheet",
+        "z": "b821a9320b0e9b6c",
+        "creds": "901cb065573abe4a",
+        "method": "append",
+        "action": "",
+        "sheet": "1_X1fLaY5T9VaanalOvdoURKQLKmNDAnQahejmbmkJUM",
+        "cells": "Sheet1!A2:F15",
+        "flatten": false,
+        "name": "",
+        "x": 1070,
+        "y": 40,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "fbe6f52b3218efaa",
+        "type": "function",
+        "z": "b821a9320b0e9b6c",
+        "name": "function 1",
+        "func": "// === Simpan waktu update terakhir di context ===\nlet lastUpdateTime = context.get(\"lastUpdateTime\") || 0;\n\n// === Ambil waktu sekarang ===\nconst now = new Date();\nconst timestamp = now.getTime();\nconst tanggal = now.toLocaleDateString('id-ID');\nconst jam = now.toLocaleTimeString('id-ID');\n\n// === Ambil data dari payload JSON dari ESP8266 ===\n// Format contoh: {\"intensitas\":45,\"threshold\":40,\"mode\":\"AUTO\"}\nconst intensitas = Number(msg.payload.intensitas || msg.payload.intensity || msg.payload || 0);\n\n// === Ambil data dari flow context (agar sinkron dengan dashboard) ===\nconst threshold = flow.get(\"threshold\") || msg.payload.threshold || 40;\nconst mode = flow.get(\"mode\") || msg.payload.mode || \"AUTO\";\nconst ledStatus = flow.get(\"status_led\") || \"OFF\";\n\n// === Kirim data setiap 2 detik agar tidak spam ke GSheet ===\nif (timestamp - lastUpdateTime > 2000) {\n    context.set(\"lastUpdateTime\", timestamp);\n\n    // === Format baris data untuk GSheet ===\n    // Kolom A = Tanggal\n    // Kolom B = Jam\n    // Kolom C = Intensitas\n    // Kolom D = Status LED\n    // Kolom E = Threshold\n    // Kolom F = Mode\n    msg.payload = [tanggal, jam, intensitas, ledStatus, threshold, mode];\n\n    return msg;\n} else {\n    // Belum waktunya update\n    return null;\n}\n",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 960,
+        "y": 140,
+        "wires": [
+            [
+                "a6e792948af0e3cf",
+                "80e93ba2cfb83518",
+                "6bb16d289d285da3"
+            ]
+        ]
+    },
+    {
+        "id": "80e93ba2cfb83518",
+        "type": "debug",
+        "z": "b821a9320b0e9b6c",
+        "name": "debug 1",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "false",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 1160,
+        "y": 160,
+        "wires": []
+    },
+    {
+        "id": "0dc2f3535d5db476",
+        "type": "GSheet",
+        "z": "b821a9320b0e9b6c",
+        "creds": "901cb065573abe4a",
+        "method": "clear",
+        "action": "",
+        "sheet": "1_X1fLaY5T9VaanalOvdoURKQLKmNDAnQahejmbmkJUM",
+        "cells": "Sheet1!A2:F15",
+        "flatten": false,
+        "name": "",
+        "x": 1120,
+        "y": 380,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "391dbb53aeb819ae",
+        "type": "inject",
+        "z": "b821a9320b0e9b6c",
+        "name": "",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "20",
+        "crontab": "",
+        "once": true,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "",
+        "payloadType": "date",
+        "x": 890,
+        "y": 380,
+        "wires": [
+            [
+                "0dc2f3535d5db476"
+            ]
+        ]
+    },
+    {
+        "id": "b37a4ddea93b7bbd",
+        "type": "mqtt out",
+        "z": "b821a9320b0e9b6c",
+        "name": "Status to Web",
+        "topic": "POLINES/FADLI/IL",
+        "qos": "2",
+        "retain": "",
+        "respTopic": "",
+        "contentType": "",
+        "userProps": "",
+        "correl": "",
+        "expiry": "",
+        "broker": "90a08a8a9b3870d2",
+        "x": 420,
+        "y": 220,
+        "wires": []
+    },
+    {
+        "id": "abd8ca1adfc6168c",
+        "type": "mqtt in",
+        "z": "b821a9320b0e9b6c",
+        "name": "Commands from Web",
+        "topic": "POLINES/PADLI/IL",
+        "qos": "2",
+        "datatype": "auto-detect",
+        "broker": "90a08a8a9b3870d2",
+        "nl": false,
+        "rap": true,
+        "rh": 0,
+        "inputs": 0,
+        "x": 550,
+        "y": 300,
+        "wires": [
+            [
+                "5f0bb4de795a3022"
+            ]
+        ]
+    },
+    {
+        "id": "17d9e52094c64336",
+        "type": "mqtt in",
+        "z": "b821a9320b0e9b6c",
+        "name": "Threshold from Web",
+        "topic": "POLINES/BADLI/IL",
+        "qos": "2",
+        "datatype": "auto-detect",
+        "broker": "90a08a8a9b3870d2",
+        "nl": false,
+        "rap": true,
+        "rh": 0,
+        "inputs": 0,
+        "x": 130,
+        "y": 560,
+        "wires": [
+            [
+                "94642b6466394c0e"
+            ]
+        ]
+    },
+    {
+        "id": "a1b2c3d4e5f6g7h8",
+        "type": "mqtt out",
+        "z": "b821a9320b0e9b6c",
+        "name": "Echo Threshold to Web",
+        "topic": "POLINES/BADLI/IL/ECHO",
+        "qos": "2",
+        "retain": "",
+        "respTopic": "",
+        "contentType": "",
+        "userProps": "",
+        "correl": "",
+        "expiry": "",
+        "broker": "90a08a8a9b3870d2",
+        "x": 410,
+        "y": 620,
+        "wires": []
+    },
+    {
+        "id": "ec4a77ef4c87cfc2",
+        "type": "function",
+        "z": "b821a9320b0e9b6c",
+        "name": "function 3",
+        "func": "// Ambil data dari payload\nconst led = msg.payload.led || \"OFF\";\nconst mode = msg.payload.mode || \"AUTO\";\nconst intensity = msg.payload.intensity || msg.payload.intensitas || 0;\n\n// Simpan ke flow context supaya bisa diambil function 1 (untuk GSheet)\nflow.set(\"status_led\", led);\nflow.set(\"mode\", mode);\n\n// Kirim lagi ke dashboard (biar Status tetap berfungsi)\nmsg.payload = { led, mode, intensity };\nreturn msg;\n",
+        "outputs": 1,
+        "timeout": 0,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 420,
+        "y": 40,
+        "wires": [
+            [
+                "745b8983883736f3"
+            ]
+        ]
+    },
+    {
+        "id": "b11f1ffdfd389eec",
+        "type": "mqtt in",
+        "z": "b821a9320b0e9b6c",
+        "name": "",
+        "topic": "POLINES/PADLI/IL",
+        "qos": "2",
+        "datatype": "auto-detect",
+        "broker": "90a08a8a9b3870d2",
+        "nl": false,
+        "rap": true,
+        "rh": 0,
+        "inputs": 0,
+        "x": 630,
+        "y": 120,
+        "wires": [
+            [
+                "745b8983883736f3"
+            ]
+        ]
+    },
+    {
+        "id": "6bb16d289d285da3",
+        "type": "GSheet",
+        "z": "b821a9320b0e9b6c",
+        "creds": "901cb065573abe4a",
+        "method": "append",
+        "action": "",
+        "sheet": "1_X1fLaY5T9VaanalOvdoURKQLKmNDAnQahejmbmkJUM",
+        "cells": "Sheet2!A2:F15",
+        "flatten": false,
+        "name": "",
+        "x": 1170,
+        "y": 120,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "e00afb77aab71832",
+        "type": "inject",
+        "z": "b821a9320b0e9b6c",
+        "name": "",
+        "props": [
+            {
+                "p": "payload"
+            },
+            {
+                "p": "topic",
+                "vt": "str"
+            }
+        ],
+        "repeat": "1200",
+        "crontab": "",
+        "once": true,
+        "onceDelay": 0.1,
+        "topic": "",
+        "payload": "",
+        "payloadType": "date",
+        "x": 870,
+        "y": 480,
+        "wires": [
+            [
+                "4c997cd32ae828a5"
+            ]
+        ]
+    },
+    {
+        "id": "4c997cd32ae828a5",
+        "type": "GSheet",
+        "z": "b821a9320b0e9b6c",
+        "creds": "901cb065573abe4a",
+        "method": "append",
+        "action": "",
+        "sheet": "1_X1fLaY5T9VaanalOvdoURKQLKmNDAnQahejmbmkJUM",
+        "cells": "Sheet2!A2:F300",
+        "flatten": false,
+        "name": "",
+        "x": 1090,
+        "y": 500,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "e831801aa57d8180",
+        "type": "ui_spacer",
+        "z": "b821a9320b0e9b6c",
+        "name": "spacer",
+        "group": "7c39d4dcfd2174cc",
+        "order": 1,
+        "width": 10,
+        "height": 1
+    },
+    {
+        "id": "3311b2d1fb798dab",
+        "type": "ui_spacer",
+        "z": "b821a9320b0e9b6c",
+        "name": "spacer",
+        "group": "7c39d4dcfd2174cc",
+        "order": 3,
+        "width": 10,
+        "height": 1
+    },
+    {
+        "id": "2708eb93a94ed84a",
+        "type": "ui_spacer",
+        "z": "b821a9320b0e9b6c",
+        "name": "spacer",
+        "group": "7c39d4dcfd2174cc",
+        "order": 4,
+        "width": 10,
+        "height": 1
+    },
+    {
+        "id": "224d89f0e99f4338",
+        "type": "ui_spacer",
+        "z": "b821a9320b0e9b6c",
+        "name": "spacer",
+        "group": "7c39d4dcfd2174cc",
+        "order": 5,
+        "width": 10,
+        "height": 1
+    },
+    {
+        "id": "de31f5d861435770",
+        "type": "ui_spacer",
+        "z": "b821a9320b0e9b6c",
+        "name": "spacer",
+        "group": "7c39d4dcfd2174cc",
+        "order": 6,
+        "width": 11,
+        "height": 1
+    },
+    {
+        "id": "4876d76b2dd34542",
+        "type": "ui_spacer",
+        "z": "b821a9320b0e9b6c",
+        "name": "spacer",
+        "group": "7c39d4dcfd2174cc",
+        "order": 8,
+        "width": 1,
+        "height": 1
+    },
+    {
+        "id": "5354a9580bc3ae90",
+        "type": "ui_spacer",
+        "z": "b821a9320b0e9b6c",
+        "name": "spacer",
+        "group": "7c39d4dcfd2174cc",
+        "order": 10,
+        "width": 1,
+        "height": 1
+    },
+    {
+        "id": "f638f806d78776da",
+        "type": "ui_spacer",
+        "z": "b821a9320b0e9b6c",
+        "name": "spacer",
+        "group": "7c39d4dcfd2174cc",
+        "order": 12,
+        "width": 11,
+        "height": 1
+    },
+    {
+        "id": "c287b88b0493535b",
+        "type": "ui_spacer",
+        "z": "b821a9320b0e9b6c",
+        "name": "spacer",
+        "group": "7c39d4dcfd2174cc",
+        "order": 13,
+        "width": 12,
+        "height": 1
+    },
+    {
+        "id": "bb8da5088466c6d3",
+        "type": "ui_spacer",
+        "z": "b821a9320b0e9b6c",
+        "name": "spacer",
+        "group": "7c39d4dcfd2174cc",
+        "order": 15,
+        "width": 12,
+        "height": 1
+    },
+    {
+        "id": "df74450714c7c3e9",
+        "type": "ui_spacer",
+        "z": "b821a9320b0e9b6c",
+        "name": "spacer",
+        "group": "7c39d4dcfd2174cc",
+        "order": 16,
+        "width": 13,
+        "height": 1
+    },
+    {
+        "id": "b8ee691ea977ae49",
+        "type": "ui_spacer",
+        "z": "b821a9320b0e9b6c",
+        "name": "spacer",
+        "group": "7c39d4dcfd2174cc",
+        "order": 18,
+        "width": 13,
+        "height": 1
+    },
+    {
+        "id": "b9f55d392e2218fa",
+        "type": "ui_spacer",
+        "z": "b821a9320b0e9b6c",
+        "name": "spacer",
+        "group": "7c39d4dcfd2174cc",
+        "order": 19,
+        "width": 13,
+        "height": 1
+    },
+    {
+        "id": "d21ba8b7c477afd0",
+        "type": "ui_spacer",
+        "z": "b821a9320b0e9b6c",
+        "name": "spacer",
+        "group": "7c39d4dcfd2174cc",
+        "order": 20,
+        "width": 13,
+        "height": 1
+    },
+    {
+        "id": "c096c26ca7ec33f0",
+        "type": "ui_spacer",
+        "z": "b821a9320b0e9b6c",
+        "name": "spacer",
+        "group": "7c39d4dcfd2174cc",
+        "order": 21,
+        "width": 13,
+        "height": 1
+    },
+    {
+        "id": "b697a0986e3a334d",
+        "type": "ui_spacer",
+        "z": "b821a9320b0e9b6c",
+        "name": "spacer",
+        "group": "7c39d4dcfd2174cc",
+        "order": 22,
+        "width": 13,
+        "height": 1
+    },
+    {
+        "id": "a6b17cfe8cfd1ae7",
+        "type": "ui_spacer",
+        "z": "b821a9320b0e9b6c",
+        "name": "spacer",
+        "group": "7c39d4dcfd2174cc",
+        "order": 23,
+        "width": 12,
+        "height": 1
+    },
+    {
+        "id": "66df06762a8f9104",
+        "type": "ui_spacer",
+        "z": "b821a9320b0e9b6c",
+        "name": "spacer",
+        "group": "7c39d4dcfd2174cc",
+        "order": 25,
+        "width": 12,
+        "height": 1
+    },
+    {
+        "id": "4a3a95a770b1557e",
+        "type": "ui_spacer",
+        "z": "b821a9320b0e9b6c",
+        "name": "spacer",
+        "group": "7c39d4dcfd2174cc",
+        "order": 26,
+        "width": 12,
+        "height": 1
+    },
+    {
+        "id": "4714260f80b5a9b1",
+        "type": "ui_spacer",
+        "z": "b821a9320b0e9b6c",
+        "name": "spacer",
+        "group": "7c39d4dcfd2174cc",
+        "order": 27,
+        "width": 12,
+        "height": 1
+    },
+    {
+        "id": "8b8360e391684c70",
+        "type": "ui_spacer",
+        "z": "b821a9320b0e9b6c",
+        "name": "spacer",
+        "group": "7c39d4dcfd2174cc",
+        "order": 28,
+        "width": 12,
+        "height": 1
+    },
+    {
+        "id": "57d70ed23ca315e4",
+        "type": "ui_spacer",
+        "z": "b821a9320b0e9b6c",
+        "name": "spacer",
+        "group": "7c39d4dcfd2174cc",
+        "order": 29,
+        "width": 12,
+        "height": 1
+    },
+    {
+        "id": "c9d1b2f3a1d0e4b5",
+        "type": "serial-port",
+        "name": "",
+        "serialport": "COM12",
+        "serialbaud": "9600",
+        "databits": "8",
+        "parity": "none",
+        "stopbits": "1",
+        "waitfor": "",
+        "newline": "\\n",
+        "bin": "false",
+        "out": "char",
+        "addchar": "",
+        "responsetimeout": "10000"
+    },
+    {
+        "id": "7c39d4dcfd2174cc",
+        "type": "ui_group",
+        "name": "Kontrol LDR",
+        "tab": "b671471e6b2a038f",
+        "order": 1,
+        "disp": true,
+        "width": 30,
+        "collapse": false
+    },
+    {
+        "id": "901cb065573abe4a",
+        "type": "gauth",
+        "name": "fadli-722@fadlihome.iam.gserviceaccount.com"
+    },
+    {
+        "id": "90a08a8a9b3870d2",
+        "type": "mqtt-broker",
+        "name": "broker.hivemq.com:1883",
+        "broker": "broker.hivemq.com:1883",
+        "port": 1883,
+        "clientid": "",
+        "autoConnect": true,
+        "usetls": false,
+        "protocolVersion": 4,
+        "keepalive": 60,
+        "cleansession": true,
+        "autoUnsubscribe": true,
+        "birthTopic": "",
+        "birthQos": "0",
+        "birthRetain": "false",
+        "birthPayload": "",
+        "birthMsg": {},
+        "closeTopic": "",
+        "closeQos": "0",
+        "closeRetain": "false",
+        "closePayload": "",
+        "closeMsg": {},
+        "willTopic": "",
+        "willQos": "0",
+        "willRetain": "false",
+        "willPayload": "",
+        "willMsg": {},
+        "userProps": "",
+        "sessionExpiry": ""
+    },
+    {
+        "id": "b671471e6b2a038f",
+        "type": "ui_tab",
+        "name": "Monitoring LDR",
+        "icon": "dashboard",
+        "order": 1,
+        "disabled": false,
+        "hidden": false
+    },
+    {
+        "id": "566db5612aae06c1",
+        "type": "global-config",
+        "env": [],
+        "modules": {
+            "node-red-node-serialport": "2.0.3",
+            "node-red-dashboard": "3.6.6",
+            "node-red-contrib-google-sheets": "1.1.2"
+        }
+    }
+]
