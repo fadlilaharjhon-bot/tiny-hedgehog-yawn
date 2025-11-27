@@ -1,7 +1,9 @@
 // === Pin Definitions ===
 #define LDR_PIN A0
 #define LED_PIN D2
-#define BUTTON_PIN D3 // Pin untuk tombol fisik
+#define BTN_AUTO_PIN D3    // Pin untuk tombol Mode AUTO
+#define BTN_MANUAL_PIN D4  // Pin untuk tombol Mode MANUAL
+#define BTN_TOGGLE_PIN D5  // Pin untuk tombol Toggle LED Manual
 
 // === LDR Calibration ===
 int adcGelap = 700;  // Nilai ADC saat sangat gelap
@@ -14,8 +16,11 @@ bool autoMode = true;    // Mulai dalam mode AUTO
 bool manualLed = false;  // Status LED yang diinginkan saat mode MANUAL
 
 // === Button Debouncing Variables ===
-int lastButtonState = HIGH; // Tombol pull-up, jadi state awal HIGH
-unsigned long lastDebounceTime = 0;
+// Menggunakan array untuk menyimpan state dan waktu debounce untuk setiap tombol
+const int NUM_BUTTONS = 3;
+const int buttonPins[] = {BTN_AUTO_PIN, BTN_MANUAL_PIN, BTN_TOGGLE_PIN};
+int lastButtonState[NUM_BUTTONS] = {HIGH, HIGH, HIGH};
+unsigned long lastDebounceTime[NUM_BUTTONS] = {0, 0, 0};
 unsigned long debounceDelay = 50; // 50 ms
 
 // === Non-blocking Timer for Serial Print ===
@@ -28,13 +33,14 @@ void setup() {
   digitalWrite(LED_PIN, LOW);
   
   // Inisialisasi pin tombol dengan internal pull-up resistor
-  // Artinya, pin akan HIGH saat tidak ditekan, dan LOW saat ditekan
-  pinMode(BUTTON_PIN, INPUT_PULLUP);
+  for (int i = 0; i < NUM_BUTTONS; i++) {
+    pinMode(buttonPins[i], INPUT_PULLUP);
+  }
 }
 
 void loop() {
-  // --- Handle Button Press (Debounced) ---
-  handleButton();
+  // --- Handle Button Presses (Debounced) ---
+  handleButtons();
 
   // --- Read LDR and Calculate Intensity ---
   int ldrValue = analogRead(LDR_PIN);
@@ -65,30 +71,41 @@ void loop() {
   handleSerialCommands();
 }
 
-void handleButton() {
-  int reading = digitalRead(BUTTON_PIN);
+void handleButtons() {
+  for (int i = 0; i < NUM_BUTTONS; i++) {
+    int reading = digitalRead(buttonPins[i]);
 
-  // Jika state tombol berubah (ada noise atau tekanan), reset timer debounce
-  if (reading != lastButtonState) {
-    lastDebounceTime = millis();
-  }
+    if (reading != lastButtonState[i]) {
+      lastDebounceTime[i] = millis();
+    }
 
-  // Setelah state stabil selama periode debounceDelay
-  if ((millis() - lastDebounceTime) > debounceDelay) {
-    // Jika tombol benar-benar ditekan (state berubah dari HIGH ke LOW)
-    if (reading == LOW && lastButtonState == HIGH) {
-      // Toggle mode
-      autoMode = !autoMode;
-      
-      // Saat beralih ke mode MANUAL, sinkronkan state LED manual
-      // dengan state LED saat ini agar tidak ada perubahan mendadak
-      if (!autoMode) {
-        manualLed = ledState;
+    if ((millis() - lastDebounceTime[i]) > debounceDelay) {
+      // Jika tombol benar-benar ditekan (state berubah dari HIGH ke LOW)
+      if (reading == LOW && lastButtonState[i] == HIGH) {
+        
+        // Tombol 1: AUTO
+        if (buttonPins[i] == BTN_AUTO_PIN) {
+          autoMode = true;
+        }
+        
+        // Tombol 2: MANUAL
+        else if (buttonPins[i] == BTN_MANUAL_PIN) {
+          autoMode = false;
+          // Saat beralih ke MANUAL, sinkronkan manualLed dengan state LED saat ini
+          manualLed = ledState; 
+        }
+        
+        // Tombol 3: TOGGLE LED (Hanya berfungsi di mode MANUAL)
+        else if (buttonPins[i] == BTN_TOGGLE_PIN) {
+          if (!autoMode) {
+            manualLed = !manualLed;
+          }
+        }
       }
     }
+    
+    lastButtonState[i] = reading;
   }
-  
-  lastButtonState = reading;
 }
 
 void sendDataToSerial(int ldrValue, int intensity) {
