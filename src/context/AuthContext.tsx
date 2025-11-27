@@ -11,6 +11,7 @@ interface AuthContextType {
   currentUser: User | null;
   login: (user: string, pass: string) => boolean;
   logout: () => void;
+  signUp: (user: string, pass: string) => { success: boolean; message?: string };
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -24,7 +25,8 @@ export const useAuth = () => {
 };
 
 // Daftar pengguna yang diizinkan. Di aplikasi nyata, ini akan berasal dari database.
-const FAKE_USERS = [
+// Mengubah dari const ke let agar bisa dimodifikasi
+let FAKE_USERS = [
   { username: "fadli", password: "password123" },
   { username: "budi", password: "password456" },
   { username: "admin", password: "password" },
@@ -60,8 +62,22 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     navigate("/login");
   };
 
+  const signUp = (username: string, pass: string) => {
+    const userExists = FAKE_USERS.some((user) => user.username === username);
+    if (userExists) {
+      return { success: false, message: "Username sudah digunakan." };
+    }
+
+    FAKE_USERS.push({ username, password: pass });
+    
+    // Otomatis login setelah berhasil mendaftar
+    login(username, pass);
+
+    return { success: true };
+  };
+
   return (
-    <AuthContext.Provider value={{ isAuthenticated, currentUser, login, logout }}>
+    <AuthContext.Provider value={{ isAuthenticated, currentUser, login, logout, signUp }}>
       {children}
     </AuthContext.Provider>
   );

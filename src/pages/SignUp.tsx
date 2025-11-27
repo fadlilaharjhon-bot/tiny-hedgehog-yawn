@@ -4,21 +4,32 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Lightbulb } from "lucide-react";
-import { Link } from "react-router-dom"; // Impor Link
+import { UserPlus } from "lucide-react";
+import { Link } from "react-router-dom";
 
-const Login = () => {
+const SignUp = () => {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
-  const { login } = useAuth();
+  const { signUp } = useAuth();
 
-  const handleLogin = () => {
+  const handleSignUp = () => {
     setError("");
-    const success = login(username, password);
-    if (!success) {
-      setError("Username atau password salah!");
+    if (password !== confirmPassword) {
+      setError("Password tidak cocok!");
+      return;
     }
+    if (!username || !password) {
+      setError("Username dan password tidak boleh kosong.");
+      return;
+    }
+
+    const result = signUp(username, password);
+    if (!result.success) {
+      setError(result.message || "Terjadi kesalahan saat mendaftar.");
+    }
+    // Jika berhasil, AuthContext akan otomatis me-redirect ke dashboard
   };
 
   return (
@@ -26,11 +37,11 @@ const Login = () => {
       <Card className="w-full max-w-sm bg-slate-800/50 backdrop-blur-sm border-slate-700 text-white">
         <CardHeader className="text-center">
           <div className="flex justify-center mb-4">
-            <Lightbulb className="w-12 h-12 text-yellow-400" />
+            <UserPlus className="w-12 h-12 text-blue-400" />
           </div>
-          <CardTitle className="text-2xl">Selamat Datang</CardTitle>
+          <CardTitle className="text-2xl">Buat Akun Baru</CardTitle>
           <CardDescription className="text-slate-400">
-            Masuk untuk mengakses Dasbor Lampu Teras
+            Daftar untuk mulai memantau lampu Anda.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -39,7 +50,7 @@ const Login = () => {
             <Input
               id="username"
               type="text"
-              placeholder="e.g. fadli"
+              placeholder="Pilih username unik"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               className="bg-slate-700 border-slate-600 placeholder:text-slate-500"
@@ -50,25 +61,33 @@ const Login = () => {
             <Input
               id="password"
               type="password"
-              placeholder="e.g. password123"
+              placeholder="Minimal 6 karakter"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="bg-slate-700 border-slate-600 placeholder:text-slate-500"
             />
           </div>
+          <div className="space-y-2">
+            <Label htmlFor="confirm-password">Konfirmasi Password</Label>
+            <Input
+              id="confirm-password"
+              type="password"
+              placeholder="Ulangi password Anda"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              className="bg-slate-700 border-slate-600 placeholder:text-slate-500"
+            />
+          </div>
           {error && <p className="text-sm text-red-500 text-center">{error}</p>}
-           <p className="text-xs text-slate-400 text-center pt-2">
-            Hint: Coba `fadli`/`password123` atau `budi`/`password456`
-          </p>
         </CardContent>
         <CardFooter className="flex flex-col gap-4">
-          <Button onClick={handleLogin} className="w-full bg-blue-600 hover:bg-blue-700">
-            Login
+          <Button onClick={handleSignUp} className="w-full bg-blue-600 hover:bg-blue-700">
+            Daftar
           </Button>
           <p className="text-xs text-slate-400 text-center">
-            Belum punya akun?{" "}
-            <Link to="/signup" className="text-blue-400 hover:underline">
-              Daftar di sini
+            Sudah punya akun?{" "}
+            <Link to="/login" className="text-blue-400 hover:underline">
+              Login di sini
             </Link>
           </p>
         </CardFooter>
@@ -77,4 +96,4 @@ const Login = () => {
   );
 };
 
-export default Login;
+export default SignUp;

@@ -7,6 +7,7 @@ import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import Dashboard from "./pages/Dashboard";
 import Login from "./pages/Login";
+import SignUp from "./pages/SignUp"; // Impor halaman baru
 import { MqttProvider } from "./components/MqttProvider";
 import { AuthProvider } from "./context/AuthContext";
 import ProtectedRoute from "./components/ProtectedRoute";
@@ -25,6 +26,7 @@ const App = () => (
             <Routes>
               <Route path="/" element={<Index />} />
               <Route path="/login" element={<Login />} />
+              <Route path="/signup" element={<SignUp />} /> {/* Tambahkan rute baru */}
               <Route
                 path="/dashboard"
                 element={
