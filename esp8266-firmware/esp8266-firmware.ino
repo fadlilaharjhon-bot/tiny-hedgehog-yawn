@@ -1,132 +1,140 @@
-// Sertakan library untuk menangani format data JSON
-#include <ArduinoJson.h>
+// === Pin Definitions ===
+#define LDR_PIN A0
+#define LED_PIN D2
+#define BUTTON_PIN D3 // Pin untuk tombol fisik
 
-// --- KONFIGURASI PIN ---
-// Ganti A0 dengan pin analog tempat Anda menghubungkan LDR
-const int LDR_PIN = A0; 
-// Ganti D1 dengan pin digital tempat Anda menghubungkan LED
-const int LED_PIN = D1; 
+// === LDR Calibration ===
+int adcGelap = 700;  // Nilai ADC saat sangat gelap
+int adcTerang = 15; // Nilai ADC saat sangat terang
 
-// --- VARIABEL GLOBAL UNTUK MENYIMPAN STATUS ---
-String currentMode = "auto"; // Mode awal: "auto" atau "manual"
-bool ledState = false;       // Status lampu awal: false = MATI, true = NYALA
-int ldrValue = 0;            // Nilai mentah dari LDR (0-1023)
-int lightIntensity = 0;      // Nilai intensitas cahaya dalam persen (0-100%)
-int thresholdValue = 410;    // Nilai ambang batas awal (sekitar 40% dari 1023)
+// === State Variables ===
+int threshold = 40;      // Ambang batas default (dalam %)
+bool ledState = false;   // Status LED saat ini (ON/OFF)
+bool autoMode = true;    // Mulai dalam mode AUTO
+bool manualLed = false;  // Status LED yang diinginkan saat mode MANUAL
 
-// Variabel untuk timing tanpa delay()
-unsigned long lastSendTime = 0;
-const long sendInterval = 1000; // Kirim data ke Node-RED setiap 1 detik
+// === Button Debouncing Variables ===
+int lastButtonState = HIGH; // Tombol pull-up, jadi state awal HIGH
+unsigned long lastDebounceTime = 0;
+unsigned long debounceDelay = 50; // 50 ms
+
+// === Non-blocking Timer for Serial Print ===
+unsigned long previousMillis = 0;
+const long interval = 500; // Interval pengiriman data serial (ms)
 
 void setup() {
-  // Mulai komunikasi serial dengan kecepatan 9600, sesuai dengan Node-RED
   Serial.begin(9600);
-
-  // Atur pin LED sebagai OUTPUT
   pinMode(LED_PIN, OUTPUT);
-  // Matikan LED saat pertama kali dinyalakan
-  digitalWrite(LED_PIN, LOW); 
+  digitalWrite(LED_PIN, LOW);
+  
+  // Inisialisasi pin tombol dengan internal pull-up resistor
+  // Artinya, pin akan HIGH saat tidak ditekan, dan LOW saat ditekan
+  pinMode(BUTTON_PIN, INPUT_PULLUP);
 }
 
 void loop() {
-  // Dapatkan waktu saat ini
-  unsigned long currentTime = millis();
+  // --- Handle Button Press (Debounced) ---
+  handleButton();
 
-  // 1. Periksa apakah ada perintah masuk dari Serial (Node-RED)
-  handleSerialInput();
+  // --- Read LDR and Calculate Intensity ---
+  int ldrValue = analogRead(LDR_PIN);
+  if (ldrValue > adcGelap) ldrValue = adcGelap;
+  if (ldrValue < adcTerang) ldrValue = adcTerang;
+  int intensity = map(ldrValue, adcGelap, adcTerang, 0, 100);
 
-  // 2. Baca nilai sensor LDR
-  readLDR();
-
-  // 3. Terapkan logika kontrol (Auto/Manual)
-  applyLogic();
-
-  // 4. Kirim status terbaru ke Node-RED secara berkala
-  if (currentTime - lastSendTime >= sendInterval) {
-    lastSendTime = currentTime;
-    sendStatus();
+  // --- Apply Logic based on Mode ---
+  if (autoMode) {
+    // Mode AUTO: LED dikontrol oleh LDR dan threshold
+    ledState = (intensity < threshold);
+  } else {
+    // Mode MANUAL: LED dikontrol oleh variabel manualLed
+    ledState = manualLed;
   }
-}
 
-void handleSerialInput() {
-  if (Serial.available() > 0) {
-    // Baca data yang masuk sampai ada karakter newline
-    String inputString = Serial.readStringUntil('\n');
-
-    // Buat dokumen JSON untuk mem-parsing data masuk
-    StaticJsonDocument<200> doc;
-    DeserializationError error = deserializeJson(doc, inputString);
-
-    // Jika parsing gagal, cetak error dan keluar dari fungsi
-    if (error) {
-      Serial.print(F("deserializeJson() gagal: "));
-      Serial.println(error.f_str());
-      return;
-    }
-
-    // --- Proses Perintah dari JSON ---
-
-    // Jika ada key "mode", ubah mode
-    if (doc.containsKey("mode")) {
-      String newMode = doc["mode"];
-      if (newMode == "auto" || newMode == "manual") {
-        currentMode = newMode;
-      }
-    }
-
-    // Jika ada key "led" dengan value "toggle" dan mode adalah "manual", ubah status LED
-    if (doc.containsKey("led")) {
-      String ledCommand = doc["led"];
-      if (ledCommand == "toggle" && currentMode == "manual") {
-        ledState = !ledState; // Balikkan status LED (ON jadi OFF, OFF jadi ON)
-      }
-    }
-
-    // Jika ada key "threshold", perbarui nilai ambang batas
-    if (doc.containsKey("threshold")) {
-      thresholdValue = doc["threshold"];
-    }
-  }
-}
-
-void readLDR() {
-  // Baca nilai analog dari pin LDR
-  ldrValue = analogRead(LDR_PIN);
-  
-  // Konversi nilai LDR (0-1023) ke persentase intensitas cahaya (0-100%)
-  // PENTING: map() ini dibalik karena nilai LDR semakin KECIL saat cahaya semakin TERANG.
-  // Jadi, nilai 0 (sangat terang) akan menjadi 100%, dan 1023 (sangat gelap) menjadi 0%.
-  lightIntensity = map(ldrValue, 0, 1023, 100, 0);
-
-  // Pastikan nilainya tidak keluar dari rentang 0-100
-  lightIntensity = constrain(lightIntensity, 0, 100);
-}
-
-void applyLogic() {
-  // Jika mode adalah "auto", kontrol LED berdasarkan LDR dan threshold
-  if (currentMode == "auto") {
-    // Jika nilai LDR lebih besar dari threshold (artinya lebih gelap), nyalakan lampu
-    if (ldrValue > thresholdValue) {
-      ledState = true; // NYALA
-    } else {
-      ledState = false; // MATI
-    }
-  }
-  
-  // Terapkan status (ledState) ke pin LED fisik
+  // --- Update Physical LED ---
   digitalWrite(LED_PIN, ledState ? HIGH : LOW);
+
+  // --- Send Data to Node-RED periodically (Non-blocking) ---
+  unsigned long currentMillis = millis();
+  if (currentMillis - previousMillis >= interval) {
+    previousMillis = currentMillis;
+    sendDataToSerial(ldrValue, intensity);
+  }
+
+  // --- Handle Incoming Serial Commands ---
+  handleSerialCommands();
 }
 
-void sendStatus() {
-  // Buat dokumen JSON untuk mengirim status
-  StaticJsonDocument<200> doc;
+void handleButton() {
+  int reading = digitalRead(BUTTON_PIN);
 
-  // Isi dokumen dengan data status saat ini
-  doc["intensity"] = lightIntensity;
-  doc["mode"] = currentMode;
-  doc["led"] = ledState ? "ON" : "OFF";
+  // Jika state tombol berubah (ada noise atau tekanan), reset timer debounce
+  if (reading != lastButtonState) {
+    lastDebounceTime = millis();
+  }
 
-  // Ubah dokumen JSON menjadi string dan kirimkan melalui Serial
-  serializeJson(doc, Serial);
-  Serial.println(); // Kirim newline sebagai penanda akhir data
+  // Setelah state stabil selama periode debounceDelay
+  if ((millis() - lastDebounceTime) > debounceDelay) {
+    // Jika tombol benar-benar ditekan (state berubah dari HIGH ke LOW)
+    if (reading == LOW && lastButtonState == HIGH) {
+      // Toggle mode
+      autoMode = !autoMode;
+      
+      // Saat beralih ke mode MANUAL, sinkronkan state LED manual
+      // dengan state LED saat ini agar tidak ada perubahan mendadak
+      if (!autoMode) {
+        manualLed = ledState;
+      }
+    }
+  }
+  
+  lastButtonState = reading;
+}
+
+void sendDataToSerial(int ldrValue, int intensity) {
+  Serial.print("{\"intensity\":");
+  Serial.print(intensity);
+  Serial.print(",\"led\":\"");
+  Serial.print(ledState ? "ON" : "OFF");
+  Serial.print("\",\"mode\":\"");
+  Serial.print(autoMode ? "auto" : "manual");
+  Serial.print("\",\"threshold\":");
+  Serial.print(threshold);
+  Serial.println("}");
+}
+
+void handleSerialCommands() {
+  if (Serial.available() > 0) {
+    String cmd = Serial.readStringUntil('\n');
+    cmd.trim();
+
+    // Format JSON: {"mode":"auto"} / {"mode":"manual"} / {"led":"toggle"} / {"threshold":50}
+    if (cmd.startsWith("{")) {
+      if (cmd.indexOf("\"mode\":\"auto\"") > 0) {
+        autoMode = true;
+      }
+      else if (cmd.indexOf("\"mode\":\"manual\"") > 0) {
+        autoMode = false;
+      }
+      else if (cmd.indexOf("\"led\":\"toggle\"") > 0) {
+        if (!autoMode) { // Hanya bekerja di mode MANUAL
+          manualLed = !manualLed;
+        }
+      }
+      else if (cmd.indexOf("\"threshold\":") > 0) {
+        // Parsing nilai threshold dari JSON (lebih robust)
+        int start = cmd.indexOf(":") + 1;
+        int end = cmd.indexOf("}", start);
+        if (end > start) {
+          String valStr = cmd.substring(start, end);
+          int newTh = valStr.toInt();
+          // Konversi nilai 0-1023 dari web app ke 0-100
+          int newThPercent = map(newTh, 0, 1023, 0, 100);
+          if (newThPercent >= 0 && newThPercent <= 100) {
+            threshold = newThPercent;
+          }
+        }
+      }
+    }
+  }
 }
