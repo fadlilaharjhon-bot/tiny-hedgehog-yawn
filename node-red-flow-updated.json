@@ -32,29 +32,7 @@
         "y": 200,
         "wires": [
             [
-                "status-splitter"
-            ]
-        ]
-    },
-    {
-        "id": "status-splitter",
-        "type": "function",
-        "z": "a1b2c3d4e5f6g7h8",
-        "name": "Split Status to Topics",
-        "func": "const status = msg.payload;\n\n// Output 1: Status LDR (untuk dashboard LDR)\nconst ldrStatus = {\n    intensity: status.intensity,\n    led: status.led,\n    mode: status.mode,\n    threshold: status.threshold\n};\n\n// Output 2: Status Lampu Ruang (untuk dashboard gestur)\nconst roomLampsStatus = {\n    lamp1: status.lamp1,\n    lamp2: status.lamp2,\n    lamp3: status.lamp3\n};\n\nreturn [\n    { payload: ldrStatus, topic: 'POLINES/FADLI/IL' },\n    { payload: roomLampsStatus, topic: 'POLINES/LAMPU_RUANG/STATUS' }\n];",
-        "outputs": 2,
-        "noerr": 0,
-        "initialize": "",
-        "finalize": "",
-        "libs": [],
-        "x": 600,
-        "y": 200,
-        "wires": [
-            [
                 "mqtt-out-ldr-status"
-            ],
-            [
-                "mqtt-out-room-status"
             ]
         ]
     },
@@ -63,25 +41,12 @@
         "type": "mqtt out",
         "z": "a1b2c3d4e5f6g7h8",
         "name": "MQTT Out: LDR Status",
-        "topic": "",
+        "topic": "POLINES/FADLI/IL",
         "qos": "1",
         "retain": "true",
         "broker": "90a08a8a9b3870d2",
-        "x": 850,
-        "y": 180,
-        "wires": []
-    },
-    {
-        "id": "mqtt-out-room-status",
-        "type": "mqtt out",
-        "z": "a1b2c3d4e5f6g7h8",
-        "name": "MQTT Out: Room Lamps Status",
-        "topic": "",
-        "qos": "1",
-        "retain": "true",
-        "broker": "90a08a8a9b3870d2",
-        "x": 880,
-        "y": 220,
+        "x": 610,
+        "y": 200,
         "wires": []
     },
     {
@@ -92,39 +57,6 @@
         "serial": "c9d1b2f3a1d0e4b5",
         "x": 870,
         "y": 440,
-        "wires": []
-    },
-    {
-        "id": "http-in-gesture",
-        "type": "http in",
-        "z": "a1b2c3d4e5f6g7h8",
-        "name": "HTTP In: Gesture Command",
-        "url": "/gesture-command",
-        "method": "post",
-        "upload": false,
-        "swaggerDoc": "",
-        "x": 180,
-        "y": 360,
-        "wires": [
-            [
-                "command-aggregator",
-                "http-response-gesture"
-            ]
-        ]
-    },
-    {
-        "id": "http-response-gesture",
-        "type": "http response",
-        "z": "a1b2c3d4e5f6g7h8",
-        "name": "Add CORS Headers",
-        "statusCode": "200",
-        "headers": {
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Methods": "POST, OPTIONS",
-            "Access-Control-Allow-Headers": "Content-Type"
-        },
-        "x": 410,
-        "y": 360,
         "wires": []
     },
     {
@@ -183,7 +115,7 @@
         "type": "function",
         "z": "a1b2c3d4e5f6g7h8",
         "name": "Process & Route Commands",
-        "func": "let cmd = msg.payload;\nlet out = {};\n\n// Dari Gesture (HTTP)\nif (cmd.command) {\n    if (cmd.command === 'toggle_lamp1') out.toggle_lamp1 = true;\n    if (cmd.command === 'toggle_lamp2') out.toggle_lamp2 = true;\n    if (cmd.command === 'toggle_lamp3') out.toggle_lamp3 = true;\n    if (cmd.command === 'all_on') out.command = 'all_on';\n    if (cmd.command === 'all_off') out.command = 'all_off';\n}\n\n// Dari MQTT LDR Dashboard\nif (cmd.mode) out.mode = cmd.mode;\nif (cmd.led === 'toggle') out.led = 'toggle';\nif (cmd.threshold) out.threshold = cmd.threshold; // Ini nilai 0-1023\n\n// Dari MQTT Room Lamp Dashboard\nif (cmd.hasOwnProperty('toggle_lamp1')) out.toggle_lamp1 = true;\nif (cmd.hasOwnProperty('toggle_lamp2')) out.toggle_lamp2 = true;\nif (cmd.hasOwnProperty('toggle_lamp3')) out.toggle_lamp3 = true;\nif (cmd.command === 'all_on') out.command = 'all_on';\nif (cmd.command === 'all_off') out.command = 'all_off';\n\n\n// Hanya kirim jika ada perintah\nif (Object.keys(out).length > 0) {\n    msg.payload = JSON.stringify(out) + '\\n';\n    return msg;\n}\nreturn null;",
+        "func": "let cmd = msg.payload;\nlet out = {};\n\n// Dari MQTT LDR Dashboard (Topik: POLINES/PADLI/IL & POLINES/BADLI/IL)\nif (cmd.mode) out.mode = cmd.mode;\nif (cmd.led === 'toggle') out.led = 'toggle'; // Untuk kontrol manual lampu teras\nif (cmd.threshold) out.threshold = cmd.threshold; // Ini nilai 0-1023\n\n// Dari MQTT Room Lamp Dashboard / Gestur (Topik: POLINES/LAMPU_RUANG/COMMAND)\nif (cmd.hasOwnProperty('toggle_lamp1')) out.toggle_lamp1 = true;\nif (cmd.hasOwnProperty('toggle_lamp2')) out.toggle_lamp2 = true;\n\n// Hanya kirim jika ada perintah yang valid\nif (Object.keys(out).length > 0) {\n    // Tambahkan newline agar mudah dibaca oleh Arduino `readStringUntil('\\n')`\n    msg.payload = JSON.stringify(out) + '\\n';\n    return msg;\n}\n\nreturn null; // Hentikan flow jika tidak ada perintah yang relevan",
         "outputs": 1,
         "noerr": 0,
         "initialize": "",
@@ -196,40 +128,6 @@
                 "serial-out-esp"
             ]
         ]
-    },
-    {
-        "id": "mqtt-in-timer-start",
-        "type": "mqtt in",
-        "z": "a1b2c3d4e5f6g7h8",
-        "name": "MQTT In: Gesture Timer Trigger",
-        "topic": "POLINES/TIMER/START",
-        "qos": "2",
-        "datatype": "json",
-        "broker": "90a08a8a9b3870d2",
-        "x": 200,
-        "y": 660,
-        "wires": [
-            [
-                "debug-timer-signal"
-            ]
-        ]
-    },
-    {
-        "id": "debug-timer-signal",
-        "type": "debug",
-        "z": "a1b2c3d4e5f6g7h8",
-        "name": "Gesture Signal Received",
-        "active": true,
-        "tosidebar": true,
-        "console": false,
-        "tostatus": false,
-        "complete": "payload",
-        "targetType": "msg",
-        "statusVal": "",
-        "statusType": "auto",
-        "x": 480,
-        "y": 660,
-        "wires": []
     },
     {
         "id": "c9d1b2f3a1d0e4b5",
