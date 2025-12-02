@@ -1,0 +1,1 @@
+// File contents are too large to display. This file contains the MediaPipe Vision library.
