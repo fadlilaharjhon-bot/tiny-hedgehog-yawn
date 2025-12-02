@@ -138,7 +138,14 @@ const Dashboard = () => {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Komponen untuk sistem LDR */}
           <LightIntensityGauge intensity={lightIntensity} />
-          <HouseStatus lights={{ terrace: ldrLampStatus }} />
+          <HouseStatus 
+            lights={{ 
+              terrace: ldrLampStatus,
+              guestRoom: roomLampStatus.lamp1,
+              livingRoom: roomLampStatus.lamp2,
+              kitchen: roomLampStatus.lamp3,
+            }} 
+          />
           <ControlPanel
             mode={mode}
             setMode={handleSetMode}
