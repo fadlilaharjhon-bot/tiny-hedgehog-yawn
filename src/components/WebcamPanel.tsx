@@ -113,18 +113,30 @@ const WebcamPanel = () => {
       
       let currentFingers = -1;
 
-      if (results.landmarks && results.landmarks.length > 0) {
+      if (results.landmarks && results.landmarks.length > 0 && results.handedness && results.handedness.length > 0) {
         const handLandmarks = results.landmarks[0];
+        const handedness = results.handedness[0][0].categoryName;
         const drawingUtils = new DrawingUtils(canvasCtx);
+        
         drawingUtils.drawLandmarks(handLandmarks, { color: "#FFC107", lineWidth: 2 });
         drawingUtils.drawConnectors(handLandmarks, HandLandmarker.HAND_CONNECTIONS, { color: "#4CAF50", lineWidth: 4 });
 
-        const fingerTips = [8, 12, 16, 20];
+        const fingerTips = [8, 12, 16, 20]; // Index, Middle, Ring, Pinky
         const thumbTip = 4;
         let fingers = 0;
-        if (handLandmarks[thumbTip].x < handLandmarks[thumbTip - 1].x) {
-          fingers++;
+
+        // Logika Ibu Jari (Thumb) yang disesuaikan dengan tangan kanan/kiri
+        if (handedness === 'Right') {
+          if (handLandmarks[thumbTip].x < handLandmarks[thumbTip - 2].x) {
+            fingers++;
+          }
+        } else { // Tangan Kiri
+          if (handLandmarks[thumbTip].x > handLandmarks[thumbTip - 2].x) {
+            fingers++;
+          }
         }
+
+        // Logika untuk 4 jari lainnya
         for (const tip of fingerTips) {
           if (handLandmarks[tip].y < handLandmarks[tip - 2].y) {
             fingers++;
