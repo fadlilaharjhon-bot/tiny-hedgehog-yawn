@@ -57,7 +57,6 @@ root = tk.Tk()
 root.title("💡 Kontrol Lampu Gestur")
 root.geometry("320x280")
 root.configure(bg="#222")
-# ... (kode GUI lainnya sama seperti yang Anda berikan)
 judul = tk.Label(root, text="SISTEM KONTROL GESTUR", fg="white", bg="#222", font=("Arial", 12, "bold"))
 judul.pack(pady=10)
 lampu1_label = tk.Label(root, text="Lampu 1: MATI", font=("Arial", 12, "bold"), width=20, height=2, bg="red", fg="white")
@@ -74,13 +73,16 @@ def update_gui():
     lampu2_label.config(text=f"R. Keluarga: {'NYALA' if lamp_states_gui['2'] else 'MATI'}", bg="lime" if lamp_states_gui['2'] else "red")
     lampu3_label.config(text=f"K. Tidur: {'NYALA' if lamp_states_gui['3'] else 'MATI'}", bg="lime" if lamp_states_gui['3'] else "red")
 
-# === Fungsi Deteksi Tangan ===
+# === Fungsi Deteksi Tangan dengan Verifikasi ===
 def hand_detection_thread():
     cap = cv2.VideoCapture(0)
+    
+    # Variabel untuk logika verifikasi
     last_gesture = -1
     gesture_start_time = 0
-    validation_time = 1.0
+    validation_time = 1.0  # Harus tahan selama 1 detik
     last_sent_gesture = -1
+    last_sent_time = 0
 
     while True:
         success, frame = cap.read()
@@ -94,10 +96,10 @@ def hand_detection_thread():
             hand_landmarks = results.multi_hand_landmarks[0]
             mp_drawing.draw_landmarks(frame, hand_landmarks, mp_hands.HAND_CONNECTIONS)
             
-            # Simple finger count
             finger_tips = [8, 12, 16, 20]
             thumb_tip = 4
             fingers = 0
+            # Logika jempol (untuk tangan kanan)
             if hand_landmarks.landmark[thumb_tip].x < hand_landmarks.landmark[thumb_tip - 1].x:
                 fingers += 1
             for tip in finger_tips:
@@ -105,18 +107,34 @@ def hand_detection_thread():
                     fingers += 1
             current_fingers = fingers
 
+        # --- Logika Verifikasi Gestur ---
         if current_fingers != last_gesture:
             last_gesture = current_fingers
             gesture_start_time = time.time()
-            last_sent_gesture = -1
+            last_sent_gesture = -1 # Reset agar gestur baru bisa dikirim
         
         if last_gesture != -1:
             elapsed_time = time.time() - gesture_start_time
+            
+            # Jika waktu tahan terpenuhi DAN gestur ini belum pernah dikirim
             if elapsed_time >= validation_time and last_gesture != last_sent_gesture:
                 process_gesture(last_gesture)
-                last_sent_gesture = last_gesture
+                last_sent_gesture = last_gesture # Tandai gestur ini sudah dikirim
+                last_sent_time = time.time()
 
+            # --- Gambar Progress Bar Validasi ---
+            progress = min(elapsed_time / validation_time, 1.0)
+            bar_length = int(200 * progress)
+            cv2.rectangle(frame, (10, 60), (10 + bar_length, 80), (0, 255, 0), -1)
+            cv2.rectangle(frame, (10, 60), (210, 80), (255, 255, 255), 2)
+
+        # Tampilkan "Sent!" selama 1 detik setelah pengiriman
+        if time.time() - last_sent_time < 1.0:
+            cv2.putText(frame, "Sent!", (220, 80), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 3)
+
+        cv2.putText(frame, f"Jari: {last_gesture if last_gesture != -1 else 'N/A'}", (10, 40), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
         cv2.imshow("Gesture Control - Tekan 'q' untuk keluar", frame)
+        
         if cv2.waitKey(5) & 0xFF == ord('q'):
             break
     
