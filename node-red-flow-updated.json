@@ -198,6 +198,40 @@
         ]
     },
     {
+        "id": "mqtt-in-timer-start",
+        "type": "mqtt in",
+        "z": "a1b2c3d4e5f6g7h8",
+        "name": "MQTT In: Gesture Timer Trigger",
+        "topic": "POLINES/TIMER/START",
+        "qos": "2",
+        "datatype": "json",
+        "broker": "90a08a8a9b3870d2",
+        "x": 200,
+        "y": 660,
+        "wires": [
+            [
+                "debug-timer-signal"
+            ]
+        ]
+    },
+    {
+        "id": "debug-timer-signal",
+        "type": "debug",
+        "z": "a1b2c3d4e5f6g7h8",
+        "name": "Gesture Signal Received",
+        "active": true,
+        "tosidebar": true,
+        "console": false,
+        "tostatus": false,
+        "complete": "payload",
+        "targetType": "msg",
+        "statusVal": "",
+        "statusType": "auto",
+        "x": 480,
+        "y": 660,
+        "wires": []
+    },
+    {
         "id": "c9d1b2f3a1d0e4b5",
         "type": "serial-port",
         "name": "",
