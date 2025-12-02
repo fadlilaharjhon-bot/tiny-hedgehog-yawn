@@ -21,11 +21,11 @@ const WebcamPanel = () => {
   const handLandmarker = useRef<HandLandmarker | null>(null);
   const lastVideoTime = useRef(-1);
 
-  // State untuk logika deteksi gestur, diadaptasi dari skrip Python
+  // State untuk logika deteksi gestur
   const lastGesture = useRef<number | null>(null);
   const gestureStartTime = useRef<number>(0);
   const lastSentGesture = useRef<number | null>(null);
-  const GESTURE_COOLDOWN_MS = 2000; // Jeda 2 detik setelah perintah terkirim
+  const GESTURE_COOLDOWN_MS = 2000;
   const lastCommandTime = useRef<number>(0);
 
   useEffect(() => {
@@ -42,7 +42,6 @@ const WebcamPanel = () => {
           runningMode: "VIDEO",
           numHands: 1,
         });
-
         handLandmarker.current = landmarker;
         setStatusMessage("Model siap. Menunggu izin kamera...");
         startWebcam();
@@ -77,42 +76,38 @@ const WebcamPanel = () => {
     }
   };
 
+  // --- FUNGSI DETEKSI JARI YANG DIPERBARUI ---
   const countFingers = (landmarks: any[], handedness: string) => {
     if (landmarks.length === 0) return 0;
     const tipIds = [4, 8, 12, 16, 20];
     let fingers = 0;
 
-    // --- Logika untuk 4 Jari (Telunjuk, Tengah, Manis, Kelingking) ---
-    // Logika ini sudah robust karena membandingkan sumbu Y (atas/bawah).
+    // Logika untuk 4 Jari (Telunjuk, Tengah, Manis, Kelingking)
+    // Jari dianggap terangkat jika ujungnya (tip) lebih tinggi (nilai Y lebih kecil)
+    // dari sendi dua tingkat di bawahnya. Ini sudah cukup andal.
     for (let i = 1; i < 5; i++) {
       if (landmarks[tipIds[i]].y < landmarks[tipIds[i] - 2].y) {
         fingers++;
       }
     }
 
-    // --- Logika Baru yang Lebih Robust untuk Ibu Jari ---
-    // Memperhitungkan tangan Kanan/Kiri dan orientasi Telapak/Punggung.
-    const isLeftHand = handedness === "Left";
-    const thumbTip = landmarks[tipIds[0]];
-    const thumbIpJoint = landmarks[tipIds[0] - 1];
-    const indexFingerKnuckle = landmarks[5];
-    const pinkyFingerKnuckle = landmarks[17];
-
-    if (isLeftHand) {
-      // Tangan fisik KIRI, tampak seperti tangan KANAN di layar (ibu jari di KIRI)
-      const isPalmFacing = indexFingerKnuckle.x > pinkyFingerKnuckle.x;
-      if (isPalmFacing) {
-        if (thumbTip.x < thumbIpJoint.x) fingers++;
-      } else { // Punggung tangan
-        if (thumbTip.x > thumbIpJoint.x) fingers++;
+    // Logika BARU dan LEBIH AKURAT untuk Ibu Jari
+    // MediaPipe 'handedness' mendeteksi tangan yang TAMPIL di layar (setelah dicerminkan).
+    const isApparentRightHand = handedness === "Right";
+    
+    if (isApparentRightHand) {
+      // Tangan KANAN di layar: Ibu jari ada di KIRI.
+      // Ibu jari terangkat jika ujungnya (landmark 4) lebih ke KIRI (nilai X lebih kecil)
+      // dari pangkalnya (landmark 2) untuk stabilitas.
+      if (landmarks[tipIds[0]].x < landmarks[tipIds[0] - 2].x) {
+        fingers++;
       }
-    } else { // Tangan Kanan
-      // Tangan fisik KANAN, tampak seperti tangan KIRI di layar (ibu jari di KANAN)
-      const isPalmFacing = indexFingerKnuckle.x < pinkyFingerKnuckle.x;
-      if (isPalmFacing) {
-        if (thumbTip.x > thumbIpJoint.x) fingers++;
-      } else { // Punggung tangan
-        if (thumbTip.x < thumbIpJoint.x) fingers++;
+    } else { // Tangan KIRI di layar
+      // Tangan KIRI di layar: Ibu jari ada di KANAN.
+      // Ibu jari terangkat jika ujungnya (landmark 4) lebih ke KANAN (nilai X lebih besar)
+      // dari pangkalnya (landmark 2).
+      if (landmarks[tipIds[0]].x > landmarks[tipIds[0] - 2].x) {
+        fingers++;
       }
     }
 
