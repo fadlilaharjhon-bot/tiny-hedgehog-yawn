@@ -1,136 +1,132 @@
 import cv2
 import mediapipe as mp
+import tkinter as tk
 import threading
 import time
-import requests # Menggunakan requests untuk mengirim HTTP POST
+import requests
 
-# === Konfigurasi ===
-NODE_RED_URL = "http://127.0.0.1:1880/gesture-command" # URL webhook di Node-RED
+# === KONFIGURASI ===
+NODE_RED_URL = "http://127.0.0.1:1880/gesture-command"
 
 # === MediaPipe Hands ===
 mp_hands = mp.solutions.hands
 mp_drawing = mp.solutions.drawing_utils
-
 hands = mp_hands.Hands(
     min_detection_confidence=0.7,
     min_tracking_confidence=0.7,
-    max_num_hands=1 # Cukup deteksi satu tangan untuk kontrol
+    max_num_hands=1
 )
 
-# === Fungsi hitung jari terangkat (kanan/kiri otomatis) ===
-def hitung_jari(hand_landmarks, handedness):
-    jari_terangkat = 0
-    jari_tips = [8, 12, 16, 20]
-    jempol_tip = 4
-    landmarks = hand_landmarks.landmark
+# === Variabel Lokal untuk GUI ===
+lamp_states_gui = {'1': False, '2': False, '3': False}
 
-    # Deteksi tangan kiri atau kanan
-    tangan_kiri = handedness.classification[0].label == "Left"
+# === Fungsi Kirim Perintah ke Node-RED ===
+def send_command_to_nodered(command):
+    try:
+        requests.post(NODE_RED_URL, json=command, timeout=1)
+        print(f"Sent command: {command}")
+        return True
+    except requests.exceptions.RequestException as e:
+        print(f"Error sending command: {e}")
+        return False
 
-    # Logika untuk jempol
-    if tangan_kiri:
-        if landmarks[jempol_tip].x > landmarks[jempol_tip - 1].x:
-            jari_terangkat += 1
-    else: # Tangan kanan
-        if landmarks[jempol_tip].x < landmarks[jempol_tip - 1].x:
-            jari_terangkat += 1
+# === Fungsi Proses Gesture ===
+def process_gesture(finger_count):
+    command = None
+    if finger_count == 1:
+        command = {"command": "toggle_lamp1"}
+        lamp_states_gui['1'] = not lamp_states_gui['1']
+    elif finger_count == 2:
+        command = {"command": "toggle_lamp2"}
+        lamp_states_gui['2'] = not lamp_states_gui['2']
+    elif finger_count == 3:
+        command = {"command": "toggle_lamp3"}
+        lamp_states_gui['3'] = not lamp_states_gui['3']
+    elif finger_count == 5:
+        command = {"command": "all_on"}
+        lamp_states_gui['1'] = lamp_states_gui['2'] = lamp_states_gui['3'] = True
+    elif finger_count == 0:
+        command = {"command": "all_off"}
+        lamp_states_gui['1'] = lamp_states_gui['2'] = lamp_states_gui['3'] = False
 
-    # Logika untuk 4 jari lainnya
-    for tip in jari_tips:
-        if landmarks[tip].y < landmarks[tip - 2].y:
-            jari_terangkat += 1
+    if command and send_command_to_nodered(command):
+        root.after(0, update_gui) # Update GUI from main thread
 
-    return jari_terangkat
+# === GUI Setup ===
+root = tk.Tk()
+root.title("💡 Kontrol Lampu Gestur")
+root.geometry("320x280")
+root.configure(bg="#222")
+# ... (kode GUI lainnya sama seperti yang Anda berikan)
+judul = tk.Label(root, text="SISTEM KONTROL GESTUR", fg="white", bg="#222", font=("Arial", 12, "bold"))
+judul.pack(pady=10)
+lampu1_label = tk.Label(root, text="Lampu 1: MATI", font=("Arial", 12, "bold"), width=20, height=2, bg="red", fg="white")
+lampu1_label.pack(pady=3)
+lampu2_label = tk.Label(root, text="Lampu 2: MATI", font=("Arial", 12, "bold"), width=20, height=2, bg="red", fg="white")
+lampu2_label.pack(pady=3)
+lampu3_label = tk.Label(root, text="Lampu 3: MATI", font=("Arial", 12, "bold"), width=20, height=2, bg="red", fg="white")
+lampu3_label.pack(pady=3)
+info_label = tk.Label(root, text="Gestur:\n1=L1 | 2=L2 | 3=L3 | 5=Semua ON | 0=Semua OFF\nTahan 1 detik", fg="white", bg="#222", font=("Arial", 9))
+info_label.pack(pady=5)
 
-# === Fungsi untuk mengirim perintah ke Node-RED ===
-def kirim_perintah_gesture(jumlah_jari):
-    perintah = None
-    if jumlah_jari == 0:
-        perintah = {"command": "all_off"}
-    elif jumlah_jari == 1:
-        perintah = {"command": "toggle_lamp1"}
-    elif jumlah_jari == 2:
-        perintah = {"command": "toggle_lamp2"}
-    elif jumlah_jari == 3:
-        perintah = {"command": "toggle_lamp3"}
-    elif jumlah_jari == 5:
-        perintah = {"command": "all_on"}
+def update_gui():
+    lampu1_label.config(text=f"R. Tamu: {'NYALA' if lamp_states_gui['1'] else 'MATI'}", bg="lime" if lamp_states_gui['1'] else "red")
+    lampu2_label.config(text=f"R. Keluarga: {'NYALA' if lamp_states_gui['2'] else 'MATI'}", bg="lime" if lamp_states_gui['2'] else "red")
+    lampu3_label.config(text=f"K. Tidur: {'NYALA' if lamp_states_gui['3'] else 'MATI'}", bg="lime" if lamp_states_gui['3'] else "red")
 
-    if perintah:
-        try:
-            print(f"Mengirim perintah ke Node-RED: {perintah}")
-            requests.post(NODE_RED_URL, json=perintah, timeout=1)
-        except requests.exceptions.RequestException as e:
-            print(f"Gagal mengirim perintah ke Node-RED: {e}")
-
-# === Fungsi utama deteksi tangan ===
-def deteksi_tangan():
+# === Fungsi Deteksi Tangan ===
+def hand_detection_thread():
     cap = cv2.VideoCapture(0)
-    gestur_sebelumnya = -1
-    waktu_awal_gestur = 0
-    durasi_validasi = 1.0  # Tahan gestur selama 1 detik
-    gestur_terakhir_dikirim = -1
-    waktu_kirim_terakhir = 0
+    last_gesture = -1
+    gesture_start_time = 0
+    validation_time = 1.0
+    last_sent_gesture = -1
 
-    print("Sistem kontrol gestur aktif. Arahkan kamera ke tangan Anda.")
-    print(f"Perintah akan dikirim ke: {NODE_RED_URL}")
-
-    while cap.isOpened():
+    while True:
         success, frame = cap.read()
-        if not success:
-            print("Gagal membaca frame dari kamera.")
-            break
-
+        if not success: continue
         frame = cv2.flip(frame, 1)
         rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        hasil = hands.process(rgb_frame)
-
-        jumlah_jari_terdeteksi = -1
-
-        if hasil.multi_hand_landmarks:
-            # Ambil tangan pertama yang terdeteksi
-            hand_landmarks = hasil.multi_hand_landmarks[0]
-            handedness = hasil.multi_handedness[0]
+        results = hands.process(rgb_frame)
+        
+        current_fingers = -1
+        if results.multi_hand_landmarks:
+            hand_landmarks = results.multi_hand_landmarks[0]
             mp_drawing.draw_landmarks(frame, hand_landmarks, mp_hands.HAND_CONNECTIONS)
             
-            jumlah_jari_terdeteksi = hitung_jari(hand_landmarks, handedness)
+            # Simple finger count
+            finger_tips = [8, 12, 16, 20]
+            thumb_tip = 4
+            fingers = 0
+            if hand_landmarks.landmark[thumb_tip].x < hand_landmarks.landmark[thumb_tip - 1].x:
+                fingers += 1
+            for tip in finger_tips:
+                if hand_landmarks.landmark[tip].y < hand_landmarks.landmark[tip - 2].y:
+                    fingers += 1
+            current_fingers = fingers
 
-        # Logika validasi gestur
-        if jumlah_jari_terdeteksi != gestur_sebelumnya:
-            gestur_sebelumnya = jumlah_jari_terdeteksi
-            waktu_awal_gestur = time.time()
-            gestur_terakhir_dikirim = -1 # Reset gestur terakhir yang dikirim
+        if current_fingers != last_gesture:
+            last_gesture = current_fingers
+            gesture_start_time = time.time()
+            last_sent_gesture = -1
         
-        if gestur_sebelumnya != -1:
-            waktu_berlalu = time.time() - waktu_awal_gestur
-            if waktu_berlalu >= durasi_validasi:
-                # Kirim perintah hanya sekali per gestur yang valid & tahan
-                if gestur_sebelumnya != gestur_terakhir_dikirim:
-                    kirim_perintah_gesture(gestur_sebelumnya)
-                    gestur_terakhir_dikirim = gestur_sebelumnya
-                    waktu_kirim_terakhir = time.time() # Catat waktu pengiriman
-                
-                # Tampilkan "Sent!" setelah perintah dikirim
-                if time.time() - waktu_kirim_terakhir < 1.0:
-                     cv2.putText(frame, "Sent!", (10, 100), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 3)
-
-            # Tampilkan progress bar validasi
-            progress = min(waktu_berlalu / durasi_validasi, 1.0)
-            bar_length = int(200 * progress)
-            cv2.rectangle(frame, (10, 60), (10 + bar_length, 80), (0, 255, 0), -1)
-            cv2.rectangle(frame, (10, 60), (210, 80), (255, 255, 255), 2)
-
-        cv2.putText(frame, f"Jari: {gestur_sebelumnya if gestur_sebelumnya != -1 else 'N/A'}", (10, 40),
-                    cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+        if last_gesture != -1:
+            elapsed_time = time.time() - gesture_start_time
+            if elapsed_time >= validation_time and last_gesture != last_sent_gesture:
+                process_gesture(last_gesture)
+                last_sent_gesture = last_gesture
 
         cv2.imshow("Gesture Control - Tekan 'q' untuk keluar", frame)
-
         if cv2.waitKey(5) & 0xFF == ord('q'):
             break
-
+    
     cap.release()
     cv2.destroyAllWindows()
-    print("Sistem kontrol gestur dihentikan.")
+    root.quit()
 
+# === Main Execution ===
 if __name__ == "__main__":
-    deteksi_tangan()
+    detection_thread = threading.Thread(target=hand_detection_thread, daemon=True)
+    detection_thread.start()
+    update_gui()
+    root.mainloop()
