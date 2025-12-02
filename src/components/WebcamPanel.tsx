@@ -4,7 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { HandLandmarker, FilesetResolver, DrawingUtils } from "@mediapipe/tasks-vision";
-import { Play, Square } from "lucide-react";
+import { Play, Square, Info } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 const NODE_RED_URL = "http://127.0.0.1:1880/gesture-command";
 
@@ -39,6 +40,8 @@ const WebcamPanel = () => {
         },
         runningMode: "VIDEO",
         numHands: 1,
+        minHandDetectionConfidence: 0.3, // Menurunkan ambang batas agar lebih sensitif
+        minTrackingConfidence: 0.3,
       });
       setHandLandmarker(landmarker);
     };
@@ -118,38 +121,21 @@ const WebcamPanel = () => {
         const handedness = results.handedness[0][0].categoryName;
         const drawingUtils = new DrawingUtils(canvasCtx);
         
-        // --- VISUALISASI MESH DITINGKATKAN ---
-        // Menggambar garis konektor
-        drawingUtils.drawConnectors(handLandmarks, HandLandmarker.HAND_CONNECTIONS, {
-          color: "#FFFFFF", // Garis putih
-          lineWidth: 5,
-        });
-        // Menggambar titik landmark
-        drawingUtils.drawLandmarks(handLandmarks, {
-          color: "#38bdf8", // Titik biru langit
-          radius: 8,
-        });
+        drawingUtils.drawConnectors(handLandmarks, HandLandmarker.HAND_CONNECTIONS, { color: "#FFFFFF", lineWidth: 5 });
+        drawingUtils.drawLandmarks(handLandmarks, { color: "#38bdf8", radius: 8 });
 
-        const fingerTips = [8, 12, 16, 20]; // Index, Middle, Ring, Pinky
+        const fingerTips = [8, 12, 16, 20];
         const thumbTip = 4;
         let fingers = 0;
 
-        // Logika Ibu Jari (Thumb) yang disesuaikan dengan tangan kanan/kiri
         if (handedness === 'Right') {
-          if (handLandmarks[thumbTip].x < handLandmarks[thumbTip - 2].x) {
-            fingers++;
-          }
-        } else { // Tangan Kiri
-          if (handLandmarks[thumbTip].x > handLandmarks[thumbTip - 2].x) {
-            fingers++;
-          }
+          if (handLandmarks[thumbTip].x < handLandmarks[thumbTip - 2].x) fingers++;
+        } else {
+          if (handLandmarks[thumbTip].x > handLandmarks[thumbTip - 2].x) fingers++;
         }
 
-        // Logika untuk 4 jari lainnya
         for (const tip of fingerTips) {
-          if (handLandmarks[tip].y < handLandmarks[tip - 2].y) {
-            fingers++;
-          }
+          if (handLandmarks[tip].y < handLandmarks[tip - 2].y) fingers++;
         }
         currentFingers = fingers;
       }
@@ -192,12 +178,7 @@ const WebcamPanel = () => {
     } else {
       if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia && selectedDeviceId) {
         try {
-          const constraints = {
-            video: {
-              deviceId: { exact: selectedDeviceId }
-            }
-          };
-          const stream = await navigator.mediaDevices.getUserMedia(constraints);
+          const stream = await navigator.mediaDevices.getUserMedia({ video: { deviceId: { exact: selectedDeviceId } } });
           if (videoRef.current) {
             videoRef.current.srcObject = stream;
             videoRef.current.addEventListener("loadeddata", () => {
@@ -221,7 +202,6 @@ const WebcamPanel = () => {
         <div className="relative aspect-video w-full bg-slate-900 rounded-md flex items-center justify-center overflow-hidden">
           <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover transform scaleX(-1)"></video>
           <canvas ref={canvasRef} className="absolute top-0 left-0 w-full h-full transform scaleX(-1)"></canvas>
-          
           <div className="absolute top-2 left-2 bg-black/50 p-2 rounded-md">
             <p className="text-lg font-bold">Jari: {detectedGesture !== -1 ? detectedGesture : "N/A"}</p>
           </div>
@@ -236,13 +216,26 @@ const WebcamPanel = () => {
             </div>
           )}
         </div>
+        
+        <Alert className="bg-slate-700/50 border-slate-600">
+          <Info className="h-4 w-4 text-sky-400" />
+          <AlertTitle className="text-sky-300">Cara Penggunaan</AlertTitle>
+          <AlertDescription className="text-slate-300 space-y-1">
+            <p>1. Posisikan satu tangan dengan jelas di depan kamera dalam area yang terang.</p>
+            <p>2. Tahan gestur jari selama 1 detik hingga bar validasi penuh untuk mengirim perintah.</p>
+            <ul className="list-disc pl-5 text-sm">
+              <li><span className="font-bold">1 Jari:</span> Kontrol Lampu 1 (R. Tamu)</li>
+              <li><span className="font-bold">2 Jari:</span> Kontrol Lampu 2 (R. Keluarga)</li>
+              <li><span className="font-bold">3 Jari:</span> Kontrol Lampu 3 (K. Tidur)</li>
+              <li><span className="font-bold">5 Jari (Telapak Terbuka):</span> Nyalakan Semua Lampu</li>
+              <li><span className="font-bold">0 Jari (Kepalan Tangan):</span> Matikan Semua Lampu</li>
+            </ul>
+          </AlertDescription>
+        </Alert>
+
         <div className="space-y-2">
           <Label htmlFor="camera-select">Pilih Kamera</Label>
-          <Select
-            value={selectedDeviceId}
-            onValueChange={setSelectedDeviceId}
-            disabled={isWebcamRunning || videoDevices.length === 0}
-          >
+          <Select value={selectedDeviceId} onValueChange={setSelectedDeviceId} disabled={isWebcamRunning || videoDevices.length === 0}>
             <SelectTrigger id="camera-select" className="w-full bg-slate-700 border-slate-600">
               <SelectValue placeholder="Pilih sumber video..." />
             </SelectTrigger>
