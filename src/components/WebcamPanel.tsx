@@ -30,16 +30,18 @@ const WebcamPanel = () => {
   // Inisialisasi Model MediaPipe dari file lokal
   useEffect(() => {
     const createHandLandmarker = async () => {
+      // Menunjuk ke folder public tempat file .wasm berada
       const vision = await FilesetResolver.forVisionTasks("/mediapipe");
       const landmarker = await HandLandmarker.createFromOptions(vision, {
         baseOptions: {
+          // Memuat model dari file .task lokal
           modelAssetPath: `/mediapipe/hand_landmarker.task`,
           delegate: "GPU",
         },
         runningMode: "VIDEO",
         numHands: 1,
-        minHandDetectionConfidence: 0.3,
-        minTrackingConfidence: 0.3,
+        minHandDetectionConfidence: 0.5, // Menggunakan nilai standar yang seimbang
+        minTrackingConfidence: 0.5,
       });
       setHandLandmarker(landmarker);
     };
