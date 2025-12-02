@@ -19,7 +19,6 @@ const WebcamPanel = ({ onSetDelayTimer }: WebcamPanelProps) => {
   const [hasError, setHasError] = useState(false);
   const [gestureOutput, setGestureOutput] = useState("Pilih lampu yang akan dikontrol");
 
-  // State machine untuk logika gestur
   const [gestureStage, setGestureStage] = useState<"selecting_lamp" | "selecting_delay">("selecting_lamp");
   const [selectedLamp, setSelectedLamp] = useState<LampSelection | null>(null);
 
@@ -86,16 +85,14 @@ const WebcamPanel = ({ onSetDelayTimer }: WebcamPanelProps) => {
     if (landmarks.length === 0) return 0;
     const tipIds = [4, 8, 12, 16, 20];
     let fingers = 0;
-    // Logika untuk 4 Jari (lebih andal membandingkan dengan sendi PIP)
     for (let i = 1; i < 5; i++) {
       if (landmarks[tipIds[i]].y < landmarks[tipIds[i] - 2].y) {
         fingers++;
       }
     }
-    // Logika Ibu Jari yang paling andal (membandingkan dengan pangkal jari telunjuk)
-    if (landmarks[tipIds[0]].x < landmarks[5].x) { // Asumsi tangan kanan di cermin
+    if (landmarks[tipIds[0]].x < landmarks[5].x) {
       if (landmarks[tipIds[0]].x < landmarks[tipIds[0] - 1].x) fingers++;
-    } else { // Asumsi tangan kiri di cermin
+    } else {
       if (landmarks[tipIds[0]].x > landmarks[tipIds[0] - 1].x) fingers++;
     }
     return fingers;
@@ -118,13 +115,15 @@ const WebcamPanel = ({ onSetDelayTimer }: WebcamPanelProps) => {
         setSelectedLamp("kamar1");
         setGestureStage("selecting_delay");
         setGestureOutput("Kamar 1 Terpilih. Pilih durasi...");
+        lastSentGesture.current = null; // FIX: Reset untuk tahap berikutnya
       } else if (fingerCount === 5) {
         setSelectedLamp("kamar2");
         setGestureStage("selecting_delay");
         setGestureOutput("Kamar 2 Terpilih. Pilih durasi...");
+        lastSentGesture.current = null; // FIX: Reset untuk tahap berikutnya
       }
-      // Atur timeout untuk reset jika tidak ada aksi
-      resetStageTimeout.current = setTimeout(resetGestureState, 10000); // Reset setelah 10 detik
+      if (resetStageTimeout.current) clearTimeout(resetStageTimeout.current);
+      resetStageTimeout.current = setTimeout(resetGestureState, 10000);
     } else if (gestureStage === "selecting_delay" && selectedLamp) {
       let delayMinutes = 0;
       if (fingerCount === 0) delayMinutes = 30;
@@ -132,6 +131,7 @@ const WebcamPanel = ({ onSetDelayTimer }: WebcamPanelProps) => {
       else if (fingerCount === 2) delayMinutes = 120;
 
       if (delayMinutes > 0) {
+        if (resetStageTimeout.current) clearTimeout(resetStageTimeout.current);
         onSetDelayTimer(selectedLamp, delayMinutes);
         setGestureOutput(`Timer ${delayMinutes}m untuk ${selectedLamp} diatur!`);
         setTimeout(resetGestureState, GESTURE_COOLDOWN_MS);
@@ -167,12 +167,11 @@ const WebcamPanel = ({ onSetDelayTimer }: WebcamPanelProps) => {
 
       const now = performance.now();
       if (now - lastCommandTime.current < GESTURE_COOLDOWN_MS) {
-        // Sedang dalam masa cooldown, jangan proses gestur baru
+        // Cooldown
       } else {
         if (fingerCount !== lastGesture.current) {
           lastGesture.current = fingerCount;
           gestureStartTime.current = now;
-          lastSentGesture.current = null;
         }
 
         if (lastGesture.current !== -1 && lastGesture.current !== null) {

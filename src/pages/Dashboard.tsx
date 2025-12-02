@@ -22,7 +22,6 @@ const Dashboard = () => {
   const { client, connectionStatus, publish } = useMqtt();
   const { logout, currentUser } = useAuth();
 
-  // --- States ---
   const [lightIntensity, setLightIntensity] = useState(0);
   const [terraceThreshold, setTerraceThreshold] = useState(40);
   const [terraceMode, setTerraceMode] = useState<"auto" | "manual">("auto");
@@ -34,19 +33,15 @@ const Dashboard = () => {
   const roomTimers = useRef<{ kamar1?: NodeJS.Timeout; kamar2?: NodeJS.Timeout }>({});
   const isConnected = connectionStatus === "Connected";
 
-  // --- Helper Functions ---
   const addHistory = (message: string) => {
     setHistory((prev) => [...prev, { timestamp: new Date(), message }]);
   };
 
-  // --- MQTT & Timer Effects ---
   useEffect(() => {
     if (!client || !isConnected) return;
 
     client.subscribe(TOPIC_LDR_STATUS);
-    // Asumsi status lampu kamar juga dikirim dari hardware via topik LDR atau topik terpisah
-    // Untuk demo, kita akan kontrol dari sini dan asumsikan hardware merespon
-
+    
     const messageHandler = (topic: string, payload: Buffer) => {
       try {
         const data = JSON.parse(payload.toString());
@@ -55,11 +50,17 @@ const Dashboard = () => {
           setTerraceMode(data.mode?.toLowerCase() ?? "auto");
           setTerraceThreshold(data.threshold ?? 40);
           
-          // Update status lampu teras HANYA jika mode manual
           if ((data.mode?.toLowerCase() ?? "auto") === "manual") {
             setLightStatus(prev => ({ ...prev, teras: data.led === "ON" }));
           }
           
+          // Update status lampu kamar dari laporan hardware
+          setLightStatus(prev => ({
+            ...prev,
+            kamar1: data.lamp1_status ?? prev.kamar1,
+            kamar2: data.lamp2_status ?? prev.kamar2,
+          }));
+
           const now = new Date();
           const newPoint = {
             time: `${now.getHours()}:${now.getMinutes()}:${now.getSeconds()}`,
@@ -76,14 +77,15 @@ const Dashboard = () => {
     return () => { client.off("message", messageHandler); };
   }, [client, isConnected]);
 
-  // Efek untuk logika timer dan LDR lampu teras
   useEffect(() => {
     const timerInterval = setInterval(() => {
       if (terraceMode !== "auto") return;
 
       const now = new Date();
       const hours = now.getHours();
-      const isNightTime = hours >= 17 || hours < 6; // Jam 5 sore sampai jam 6 pagi
+      const minutes = now.getMinutes();
+      
+      const isNightTime = (hours === 17 && minutes >= 30) || hours >= 18 || hours < 6;
       const isLdrDark = lightIntensity < terraceThreshold;
       
       const shouldBeOn = isNightTime || isLdrDark;
@@ -93,12 +95,11 @@ const Dashboard = () => {
         publish(TOPIC_LDR_COMMAND, JSON.stringify({ led: shouldBeOn ? "ON" : "OFF" }));
         addHistory(`Lampu Teras ${shouldBeOn ? 'ON' : 'OFF'} (Otomatis oleh ${isNightTime ? 'Timer' : 'LDR'})`);
       }
-    }, 5000); // Cek setiap 5 detik
+    }, 5000);
 
     return () => clearInterval(timerInterval);
   }, [terraceMode, lightIntensity, terraceThreshold, lightStatus.teras, publish]);
 
-  // --- Handlers ---
   const handleSetTerraceMode = (newMode: "auto" | "manual") => {
     publish(TOPIC_LDR_COMMAND, JSON.stringify({ mode: newMode }));
     addHistory(`Mode Lampu Teras diubah ke ${newMode.toUpperCase()}`);
@@ -123,11 +124,19 @@ const Dashboard = () => {
     }, 400);
   };
 
+  const handleToggleRoomLamp = (lamp: "kamar1" | "kamar2") => {
+    const newState = !lightStatus[lamp];
+    setLightStatus(prev => ({ ...prev, [lamp]: newState }));
+    
+    const command = lamp === 'kamar1' ? { toggle_lamp1: true } : { toggle_lamp2: true };
+    publish(TOPIC_ROOM_COMMAND, JSON.stringify(command));
+    
+    addHistory(`Lampu ${lamp} ${newState ? 'ON' : 'OFF'} (Manual)`);
+  };
+
   const handleSetDelayTimer = (lamp: "kamar1" | "kamar2", delayMinutes: number) => {
-    // Hapus timer lama jika ada
     if (roomTimers.current[lamp]) clearTimeout(roomTimers.current[lamp]);
 
-    // Nyalakan lampu
     setLightStatus(prev => ({ ...prev, [lamp]: true }));
     publish(TOPIC_ROOM_COMMAND, JSON.stringify({ [lamp === 'kamar1' ? 'toggle_lamp1' : 'toggle_lamp2']: true }));
     
@@ -135,7 +144,6 @@ const Dashboard = () => {
     addHistory(message);
     showSuccess(message);
 
-    // Atur timer baru untuk mematikan
     roomTimers.current[lamp] = setTimeout(() => {
       setLightStatus(prev => ({ ...prev, [lamp]: false }));
       publish(TOPIC_ROOM_COMMAND, JSON.stringify({ [lamp === 'kamar1' ? 'toggle_lamp1' : 'toggle_lamp2']: true }));
@@ -159,7 +167,11 @@ const Dashboard = () => {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-1 flex flex-col gap-6">
-            <LightStatusPanel status={lightStatus} />
+            <LightStatusPanel 
+              status={lightStatus} 
+              onToggleKamar1={() => handleToggleRoomLamp("kamar1")}
+              onToggleKamar2={() => handleToggleRoomLamp("kamar2")}
+            />
             <LightIntensityGauge intensity={lightIntensity} />
           </div>
 
