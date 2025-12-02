@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { HandLandmarker, FilesetResolver, DrawingUtils } from "@mediapipe/tasks-vision";
 import { Play, Square } from "lucide-react";
 
@@ -12,18 +14,19 @@ const WebcamPanel = () => {
   const [detectedGesture, setDetectedGesture] = useState<number>(-1);
   const [validationProgress, setValidationProgress] = useState(0);
   const [sentStatus, setSentStatus] = useState(false);
+  const [videoDevices, setVideoDevices] = useState<MediaDeviceInfo[]>([]);
+  const [selectedDeviceId, setSelectedDeviceId] = useState<string>('');
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const requestRef = useRef<number>();
   
-  // Refs for gesture validation logic
   const lastGestureRef = useRef<number>(-1);
   const gestureStartTimeRef = useRef<number>(0);
   const lastSentGestureRef = useRef<number>(-1);
   const validationTime = 1.0; // 1 second
 
-  // 1. Inisialisasi Model MediaPipe
+  // Inisialisasi Model MediaPipe
   useEffect(() => {
     const createHandLandmarker = async () => {
       const vision = await FilesetResolver.forVisionTasks(
@@ -42,7 +45,27 @@ const WebcamPanel = () => {
     createHandLandmarker();
   }, []);
 
-  // 2. Fungsi untuk mengirim perintah ke Node-RED
+  // Mendapatkan daftar perangkat kamera
+  useEffect(() => {
+    const getDevices = async () => {
+      if (!navigator.mediaDevices?.enumerateDevices) {
+        console.log("enumerateDevices() not supported.");
+        return;
+      }
+      try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const videoInputs = devices.filter(device => device.kind === 'videoinput');
+        setVideoDevices(videoInputs);
+        if (videoInputs.length > 0) {
+          setSelectedDeviceId(videoInputs[0].deviceId);
+        }
+      } catch (err) {
+        console.error("Error enumerating devices:", err);
+      }
+    };
+    getDevices();
+  }, []);
+
   const sendCommand = async (command: object) => {
     try {
       await fetch(NODE_RED_URL, {
@@ -58,7 +81,6 @@ const WebcamPanel = () => {
     }
   };
 
-  // 3. Fungsi untuk memproses gestur yang terdeteksi
   const processGesture = (fingerCount: number) => {
     let command: object | null = null;
     if (fingerCount === 1) command = { command: "toggle_lamp1" };
@@ -72,7 +94,6 @@ const WebcamPanel = () => {
     }
   };
 
-  // 4. Loop Deteksi (Game Loop)
   const predictWebcam = async () => {
     if (!videoRef.current || !canvasRef.current || !handLandmarker) return;
 
@@ -98,7 +119,6 @@ const WebcamPanel = () => {
         drawingUtils.drawLandmarks(handLandmarks, { color: "#FFC107", lineWidth: 2 });
         drawingUtils.drawConnectors(handLandmarks, HandLandmarker.HAND_CONNECTIONS, { color: "#4CAF50", lineWidth: 4 });
 
-        // Logika hitung jari (porting dari Python)
         const fingerTips = [8, 12, 16, 20];
         const thumbTip = 4;
         let fingers = 0;
@@ -115,7 +135,6 @@ const WebcamPanel = () => {
       
       setDetectedGesture(currentFingers);
 
-      // Logika Verifikasi Gestur
       if (currentFingers !== lastGestureRef.current) {
         lastGestureRef.current = currentFingers;
         gestureStartTimeRef.current = performance.now();
@@ -142,7 +161,6 @@ const WebcamPanel = () => {
     }
   };
 
-  // 5. Handler untuk tombol Start/Stop
   const handleToggleWebcam = async () => {
     if (isWebcamRunning) {
       setIsWebcamRunning(false);
@@ -151,9 +169,14 @@ const WebcamPanel = () => {
         (videoRef.current.srcObject as MediaStream).getTracks().forEach(track => track.stop());
       }
     } else {
-      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia && selectedDeviceId) {
         try {
-          const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+          const constraints = {
+            video: {
+              deviceId: { exact: selectedDeviceId }
+            }
+          };
+          const stream = await navigator.mediaDevices.getUserMedia(constraints);
           if (videoRef.current) {
             videoRef.current.srcObject = stream;
             videoRef.current.addEventListener("loadeddata", () => {
@@ -178,7 +201,6 @@ const WebcamPanel = () => {
           <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover transform scaleX(-1)"></video>
           <canvas ref={canvasRef} className="absolute top-0 left-0 w-full h-full transform scaleX(-1)"></canvas>
           
-          {/* Overlays */}
           <div className="absolute top-2 left-2 bg-black/50 p-2 rounded-md">
             <p className="text-lg font-bold">Jari: {detectedGesture !== -1 ? detectedGesture : "N/A"}</p>
           </div>
@@ -193,7 +215,26 @@ const WebcamPanel = () => {
             </div>
           )}
         </div>
-        <Button onClick={handleToggleWebcam} disabled={!handLandmarker} className="w-full">
+        <div className="space-y-2">
+          <Label htmlFor="camera-select">Pilih Kamera</Label>
+          <Select
+            value={selectedDeviceId}
+            onValueChange={setSelectedDeviceId}
+            disabled={isWebcamRunning || videoDevices.length === 0}
+          >
+            <SelectTrigger id="camera-select" className="w-full bg-slate-700 border-slate-600">
+              <SelectValue placeholder="Pilih sumber video..." />
+            </SelectTrigger>
+            <SelectContent className="bg-slate-800 text-white border-slate-600">
+              {videoDevices.map((device) => (
+                <SelectItem key={device.deviceId} value={device.deviceId}>
+                  {device.label || `Kamera ${videoDevices.indexOf(device) + 1}`}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <Button onClick={handleToggleWebcam} disabled={!handLandmarker || !selectedDeviceId} className="w-full">
           {isWebcamRunning ? <Square className="w-4 h-4 mr-2" /> : <Play className="w-4 h-4 mr-2" />}
           {isWebcamRunning ? "Hentikan Deteksi" : (handLandmarker ? "Mulai Deteksi Gestur" : "Memuat Model...")}
         </Button>
