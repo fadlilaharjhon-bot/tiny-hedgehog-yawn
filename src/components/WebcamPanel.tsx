@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { HandLandmarker, FilesetResolver, DrawingUtils } from "@mediapipe/tasks-vision";
-import { Info, Video, VideoOff, Loader2, Hand, Timer, Lamp } from "lucide-react";
+import { Info, Video, VideoOff, Loader2, Timer, Lamp } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 type LampSelection = "kamar1" | "kamar2";
@@ -10,7 +10,7 @@ interface WebcamPanelProps {
   onSetDelayTimer: (lamp: LampSelection, delayMinutes: number) => void;
 }
 
-const VALIDATION_TIME_MS = 2000; // Tahan gestur selama 2 detik untuk verifikasi
+const VALIDATION_TIME_MS = 2000; // Tahan gestur selama 2 detik
 const GESTURE_COOLDOWN_MS = 3000; // Jeda 3 detik setelah perintah terkirim
 
 const WebcamPanel = ({ onSetDelayTimer }: WebcamPanelProps) => {
@@ -28,10 +28,10 @@ const WebcamPanel = ({ onSetDelayTimer }: WebcamPanelProps) => {
   const handLandmarker = useRef<HandLandmarker | null>(null);
   const lastVideoTime = useRef(-1);
 
+  // State yang disederhanakan
   const lastGesture = useRef<number | null>(null);
   const gestureStartTime = useRef<number>(0);
-  const lastSentGesture = useRef<number | null>(null);
-  const lastCommandTime = useRef<number>(0);
+  const lastCommandTime = useRef<number>(0); // Kunci dari logika baru
   const resetStageTimeout = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
@@ -51,7 +51,6 @@ const WebcamPanel = ({ onSetDelayTimer }: WebcamPanelProps) => {
         startWebcam();
       } catch (e) {
         console.error("Gagal memuat model HandLandmarker:", e);
-        setStatusMessage("Gagal memuat model deteksi.");
         setHasError(true);
       }
     };
@@ -86,9 +85,7 @@ const WebcamPanel = ({ onSetDelayTimer }: WebcamPanelProps) => {
     const tipIds = [4, 8, 12, 16, 20];
     let fingers = 0;
     for (let i = 1; i < 5; i++) {
-      if (landmarks[tipIds[i]].y < landmarks[tipIds[i] - 2].y) {
-        fingers++;
-      }
+      if (landmarks[tipIds[i]].y < landmarks[tipIds[i] - 2].y) fingers++;
     }
     if (landmarks[tipIds[0]].x < landmarks[5].x) {
       if (landmarks[tipIds[0]].x < landmarks[tipIds[0] - 1].x) fingers++;
@@ -103,24 +100,21 @@ const WebcamPanel = ({ onSetDelayTimer }: WebcamPanelProps) => {
     setSelectedLamp(null);
     setGestureOutput("Pilih lampu yang akan dikontrol");
     lastGesture.current = null;
-    lastSentGesture.current = null;
     if (resetStageTimeout.current) clearTimeout(resetStageTimeout.current);
   };
 
   const processGesture = (fingerCount: number) => {
-    lastCommandTime.current = performance.now();
+    lastCommandTime.current = performance.now(); // Mulai cooldown SEKARANG
 
     if (gestureStage === "selecting_lamp") {
       if (fingerCount === 0) {
         setSelectedLamp("kamar1");
         setGestureStage("selecting_delay");
         setGestureOutput("Kamar 1 Terpilih. Pilih durasi...");
-        lastSentGesture.current = null; // FIX: Reset untuk tahap berikutnya
       } else if (fingerCount === 5) {
         setSelectedLamp("kamar2");
         setGestureStage("selecting_delay");
         setGestureOutput("Kamar 2 Terpilih. Pilih durasi...");
-        lastSentGesture.current = null; // FIX: Reset untuk tahap berikutnya
       }
       if (resetStageTimeout.current) clearTimeout(resetStageTimeout.current);
       resetStageTimeout.current = setTimeout(resetGestureState, 10000);
@@ -131,7 +125,6 @@ const WebcamPanel = ({ onSetDelayTimer }: WebcamPanelProps) => {
       else if (fingerCount === 2) delayMinutes = 120;
 
       if (delayMinutes > 0) {
-        if (resetStageTimeout.current) clearTimeout(resetStageTimeout.current);
         onSetDelayTimer(selectedLamp, delayMinutes);
         setGestureOutput(`Timer ${delayMinutes}m untuk ${selectedLamp} diatur!`);
         setTimeout(resetGestureState, GESTURE_COOLDOWN_MS);
@@ -166,33 +159,35 @@ const WebcamPanel = ({ onSetDelayTimer }: WebcamPanelProps) => {
       }
 
       const now = performance.now();
-      if (now - lastCommandTime.current < GESTURE_COOLDOWN_MS) {
-        // Cooldown
-      } else {
-        if (fingerCount !== lastGesture.current) {
-          lastGesture.current = fingerCount;
-          gestureStartTime.current = now;
-        }
+      if (fingerCount !== lastGesture.current) {
+        lastGesture.current = fingerCount;
+        gestureStartTime.current = now;
+      }
 
-        if (lastGesture.current !== -1 && lastGesture.current !== null) {
-          const elapsedTime = now - gestureStartTime.current;
-          if (elapsedTime >= VALIDATION_TIME_MS && lastGesture.current !== lastSentGesture.current) {
-            processGesture(lastGesture.current);
-            lastSentGesture.current = lastGesture.current;
-          } else if (gestureStage === 'selecting_lamp' || gestureStage === 'selecting_delay') {
-            const progress = Math.round((elapsedTime / VALIDATION_TIME_MS) * 100);
-            const currentGesture = lastGesture.current;
-            let actionText = "";
-            if(gestureStage === 'selecting_lamp') {
-                if(currentGesture === 0) actionText = "Pilih Kamar 1";
-                else if(currentGesture === 5) actionText = "Pilih Kamar 2";
-            } else {
-                if(currentGesture === 0) actionText = "Set Timer 30m";
-                else if(currentGesture === 1) actionText = "Set Timer 1j";
-                else if(currentGesture === 2) actionText = "Set Timer 2j";
-            }
-            if(actionText) setGestureOutput(`Tahan: ${actionText} (${Math.min(progress, 100)}%)`);
+      const inCooldown = now - lastCommandTime.current < GESTURE_COOLDOWN_MS;
+      if (inCooldown) {
+        const cooldownRemaining = (GESTURE_COOLDOWN_MS - (now - lastCommandTime.current)) / 1000;
+        if (gestureOutput.startsWith("Timer")) {
+          // Biarkan pesan sukses timer tampil
+        } else {
+          setGestureOutput(`Cooldown ${cooldownRemaining.toFixed(1)}s`);
+        }
+      } else if (lastGesture.current !== -1 && lastGesture.current !== null) {
+        const elapsedTime = now - gestureStartTime.current;
+        if (elapsedTime >= VALIDATION_TIME_MS) {
+          processGesture(lastGesture.current);
+        } else {
+          const progress = Math.min(Math.round((elapsedTime / VALIDATION_TIME_MS) * 100), 100);
+          let actionText = "";
+          if (gestureStage === 'selecting_lamp') {
+            if (lastGesture.current === 0) actionText = "Pilih Kamar 1";
+            else if (lastGesture.current === 5) actionText = "Pilih Kamar 2";
+          } else {
+            if (lastGesture.current === 0) actionText = "Set Timer 30m";
+            else if (lastGesture.current === 1) actionText = "Set Timer 1j";
+            else if (lastGesture.current === 2) actionText = "Set Timer 2j";
           }
+          if (actionText) setGestureOutput(`Tahan: ${actionText} (${progress}%)`);
         }
       }
       canvasCtx.restore();
