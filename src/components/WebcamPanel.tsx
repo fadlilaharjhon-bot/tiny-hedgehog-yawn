@@ -12,13 +12,13 @@ interface WebcamPanelProps {
 }
 
 const VALIDATION_TIME_MS = 2000; // Tahan gestur selama 2 detik
-const GESTURE_COOLDOWN_MS = 3500; // Jeda 3.5 detik setelah perintah terkirim
+const GESTURE_COOLDOWN_MS = 3000; // Jeda 3 detik setelah perintah terkirim
 
 const WebcamPanel = ({ onSetDelayTimer }: WebcamPanelProps) => {
   const [isWebcamRunning, setIsWebcamRunning] = useState(false);
   const [statusMessage, setStatusMessage] = useState("Memuat model deteksi...");
   const [hasError, setHasError] = useState(false);
-  const [gestureOutput, setGestureOutput] = useState("Bentuk gestur lengkap dengan kedua tangan");
+  const [gestureOutput, setGestureOutput] = useState("Tunjukkan gestur lengkap dengan kedua tangan");
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -26,7 +26,8 @@ const WebcamPanel = ({ onSetDelayTimer }: WebcamPanelProps) => {
   const handLandmarker = useRef<HandLandmarker | null>(null);
   const lastVideoTime = useRef(-1);
 
-  const lastGesture = useRef<{ left: number; right: number } | null>(null);
+  // State untuk gestur saat ini: { left: fingerCount, right: fingerCount }
+  const currentGesture = useRef<{ left: number | null; right: number | null }>({ left: null, right: null });
   const gestureStartTime = useRef<number>(0);
   const lastCommandTime = useRef<number>(0);
 
@@ -34,20 +35,20 @@ const WebcamPanel = ({ onSetDelayTimer }: WebcamPanelProps) => {
     const createHandLandmarker = async () => {
       try {
         const vision = await FilesetResolver.forVisionTasks("https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.9/wasm");
-        handLandmarker.current = await HandLandmarker.createFromOptions(vision, {
+        const landmarker = await HandLandmarker.createFromOptions(vision, {
           baseOptions: {
             modelAssetPath: `https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task`,
             delegate: "CPU",
           },
           runningMode: "VIDEO",
-          numHands: 2,
+          numHands: 2, // Harus mendeteksi dua tangan
         });
+        handLandmarker.current = landmarker;
         setStatusMessage("Model siap. Menunggu izin kamera...");
         startWebcam();
       } catch (e) {
         console.error("Gagal memuat model HandLandmarker:", e);
         setHasError(true);
-        setStatusMessage("Gagal memuat model.");
       }
     };
     createHandLandmarker();
@@ -76,37 +77,67 @@ const WebcamPanel = ({ onSetDelayTimer }: WebcamPanelProps) => {
   };
 
   const countFingers = (landmarks: any[], handedness: Handedness) => {
+    if (landmarks.length === 0) return 0;
     const tipIds = [4, 8, 12, 16, 20];
     let fingers = 0;
-    // Jari Telunjuk s/d Kelingking (logika sama untuk kedua tangan)
-    for (let i = 1; i < 5; i++) {
-      if (landmarks[tipIds[i]].y < landmarks[tipIds[i] - 2].y) fingers++;
-    }
-    // Ibu Jari (logika berbeda tergantung tangan)
+    
+    // Ibu Jari (Thumb)
+    // Logika harus disesuaikan berdasarkan handedness yang dilaporkan MediaPipe
     if (handedness === 'Right') {
+      // Untuk tangan kanan, ibu jari terbuka jika ujungnya lebih ke kiri dari sendi di bawahnya (di cermin)
       if (landmarks[tipIds[0]].x < landmarks[tipIds[0] - 1].x) fingers++;
     } else { // Left
+      // Untuk tangan kiri, ibu jari terbuka jika ujungnya lebih ke kanan dari sendi di bawahnya (di cermin)
       if (landmarks[tipIds[0]].x > landmarks[tipIds[0] - 1].x) fingers++;
+    }
+
+    // 4 Jari Lainnya
+    for (let i = 1; i < 5; i++) {
+      if (landmarks[tipIds[i]].y < landmarks[tipIds[i] - 2].y) fingers++;
     }
     return fingers;
   };
 
-  const processGesture = (gesture: { left: number; right: number }) => {
-    lastCommandTime.current = performance.now();
+  const getCommandDetails = (lampFingers: number, delayFingers: number) => {
     let lamp: LampSelection | null = null;
     let delayMinutes = 0;
+    let lampText = "N/A";
+    let delayText = "N/A";
 
-    if (gesture.left === 1) lamp = "kamar1";
-    else if (gesture.left === 2) lamp = "kamar2";
+    // 1. Pilih Lampu (Tangan Kiri)
+    if (lampFingers === 1) {
+      lamp = "kamar1";
+      lampText = "Kamar 1";
+    } else if (lampFingers === 2) {
+      lamp = "kamar2";
+      lampText = "Kamar 2";
+    }
 
-    if (gesture.right === 0) delayMinutes = 5;
-    else if (gesture.right === 1) delayMinutes = 10;
-    else if (gesture.right === 2) delayMinutes = 20;
-    else if (gesture.right === 5) delayMinutes = 60;
+    // 2. Pilih Durasi (Tangan Kanan)
+    if (delayFingers === 0) {
+      delayMinutes = 5;
+      delayText = "5 Menit";
+    } else if (delayFingers === 1) {
+      delayMinutes = 10;
+      delayText = "10 Menit";
+    } else if (delayFingers === 2) {
+      delayMinutes = 20;
+      delayText = "20 Menit";
+    } else if (delayFingers === 5) {
+      delayMinutes = 60;
+      delayText = "1 Jam";
+    }
+
+    return { lamp, delayMinutes, lampText, delayText };
+  };
+
+  const processGesture = (leftFingers: number, rightFingers: number) => {
+    const { lamp, delayMinutes, lampText, delayText } = getCommandDetails(leftFingers, rightFingers);
 
     if (lamp && delayMinutes > 0) {
       onSetDelayTimer(lamp, delayMinutes);
-      setGestureOutput(`PERINTAH DIKIRIM: Timer ${delayMinutes}m untuk ${lamp}!`);
+      setGestureOutput(`PERINTAH DIKIRIM: ${lampText} (${delayText})!`);
+      lastCommandTime.current = performance.now();
     }
   };
 
@@ -128,14 +159,25 @@ const WebcamPanel = ({ onSetDelayTimer }: WebcamPanelProps) => {
       canvasCtx.save();
       canvasCtx.clearRect(0, 0, canvas.width, canvas.height);
 
-      let currentGesture = { left: -1, right: -1 };
+      let leftFingers: number | null = null;
+      let rightFingers: number | null = null;
+
       if (results.landmarks && results.landmarks.length > 0) {
         for (let i = 0; i < results.landmarks.length; i++) {
           const landmarks = results.landmarks[i];
-          const handedness = results.multiHandedness[i].categoryName as Handedness;
+          // FIX: Access the first element of the handedness array
+          const handedness = results.handedness[i][0].categoryName as Handedness;
           const fingerCount = countFingers(landmarks, handedness);
-          if (handedness === 'Left') currentGesture.left = fingerCount;
-          if (handedness === 'Right') currentGesture.right = fingerCount;
+          
+          // MediaPipe melaporkan tangan dari sudut pandang kamera (cermin)
+          // Tangan Kiri Anda (di layar) adalah Right Handedness
+          // Tangan Kanan Anda (di layar) adalah Left Handedness
+          // Kita asumsikan user menggunakan tangan kiri untuk Lampu dan tangan kanan untuk Durasi
+          if (handedness === 'Left') { // Tangan Kanan user (untuk Durasi)
+            rightFingers = fingerCount;
+          } else if (handedness === 'Right') { // Tangan Kiri user (untuk Lampu)
+            leftFingers = fingerCount;
+          }
           
           const drawingUtils = new DrawingUtils(canvasCtx);
           drawingUtils.drawConnectors(landmarks, HandLandmarker.HAND_CONNECTIONS, { color: "#38bdf8", lineWidth: 5 });
@@ -143,26 +185,33 @@ const WebcamPanel = ({ onSetDelayTimer }: WebcamPanelProps) => {
         }
       }
 
-      if (JSON.stringify(currentGesture) !== JSON.stringify(lastGesture.current)) {
-        lastGesture.current = currentGesture;
+      const newGesture = { left: leftFingers, right: rightFingers };
+      const isGestureValid = leftFingers !== null && rightFingers !== null;
+
+      if (JSON.stringify(newGesture) !== JSON.stringify(currentGesture.current)) {
+        currentGesture.current = newGesture;
         gestureStartTime.current = now;
       }
 
       const inCooldown = now - lastCommandTime.current < GESTURE_COOLDOWN_MS;
       if (inCooldown) {
-        if (!gestureOutput.startsWith("PERINTAH DIKIRIM")) {
-          setGestureOutput("Cooldown...");
-        }
-      } else if (lastGesture.current && lastGesture.current.left !== -1 && lastGesture.current.right !== -1) {
+        // Biarkan pesan sukses tampil
+      } else if (isGestureValid) {
         const elapsedTime = now - gestureStartTime.current;
+        const { lampText, delayText } = getCommandDetails(leftFingers!, rightFingers!);
+
         if (elapsedTime >= VALIDATION_TIME_MS) {
-          processGesture(lastGesture.current);
+          processGesture(leftFingers!, rightFingers!);
         } else {
           const progress = Math.min(Math.round((elapsedTime / VALIDATION_TIME_MS) * 100), 100);
-          setGestureOutput(`Tahan gestur... (${progress}%)`);
+          if (lampText !== "N/A" && delayText !== "N/A") {
+            setGestureOutput(`Tahan: ${lampText} + ${delayText} (${progress}%)`);
+          } else {
+            setGestureOutput(`Gestur tidak lengkap. Tangan Kiri: ${leftFingers}, Tangan Kanan: ${rightFingers}`);
+          }
         }
       } else {
-        setGestureOutput("Bentuk gestur lengkap dengan kedua tangan");
+        setGestureOutput("Tunjukkan gestur lengkap dengan kedua tangan");
       }
       canvasCtx.restore();
     }
@@ -172,7 +221,7 @@ const WebcamPanel = ({ onSetDelayTimer }: WebcamPanelProps) => {
   return (
     <Card className="bg-slate-800/50 backdrop-blur-sm border-slate-700 text-white">
       <CardHeader>
-        <CardTitle>Panel Kontrol Gestur Tangan</CardTitle>
+        <CardTitle>Panel Kontrol Gestur Tangan (One-Shot)</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="relative aspect-video w-full bg-slate-900 rounded-md flex items-center justify-center overflow-hidden">
@@ -189,25 +238,27 @@ const WebcamPanel = ({ onSetDelayTimer }: WebcamPanelProps) => {
         </div>
         <Alert className="bg-slate-700/50 border-slate-600">
           <Info className="h-4 w-4 text-sky-400" />
-          <AlertTitle className="text-sky-300">Cara Penggunaan (Satu Gestur Lengkap)</AlertTitle>
-          <AlertDescription className="text-slate-300 space-y-2">
-            <div>
-              <p className="font-bold">Tangan Kiri (Pilih Lampu):</p>
-              <ul className="list-disc list-inside pl-2">
-                <li><span className="font-mono">1 Jari:</span> Pilih Lampu Kamar 1</li>
-                <li><span className="font-mono">2 Jari:</span> Pilih Lampu Kamar 2</li>
-              </ul>
+          <AlertTitle className="text-sky-300">Cara Penggunaan (Gestur Simultan)</AlertTitle>
+          <AlertDescription className="text-slate-300 space-y-1">
+            <p className="font-bold">Tahan kedua gestur ini secara bersamaan selama 2 detik:</p>
+            <div className="grid grid-cols-2 gap-4 mt-2">
+              <div>
+                <p className="font-bold text-sky-300">TANGAN KIRI (Pilih Lampu)</p>
+                <ul className="list-disc list-inside pl-2 text-sm">
+                  <li><span className="font-mono">1 Jari:</span> Kamar 1</li>
+                  <li><span className="font-mono">2 Jari:</span> Kamar 2</li>
+                </ul>
+              </div>
+              <div>
+                <p className="font-bold text-green-300">TANGAN KANAN (Pilih Durasi)</p>
+                <ul className="list-disc list-inside pl-2 text-sm">
+                  <li><span className="font-mono">0 Jari (Mengepal):</span> 5 Menit</li>
+                  <li><span className="font-mono">1 Jari:</span> 10 Menit</li>
+                  <li><span className="font-mono">2 Jari:</span> 20 Menit</li>
+                  <li><span className="font-mono">5 Jari (Terbuka):</span> 1 Jam</li>
+                </ul>
+              </div>
             </div>
-            <div>
-              <p className="font-bold">Tangan Kanan (Pilih Durasi):</p>
-              <ul className="list-disc list-inside pl-2">
-                <li><span className="font-mono">Mengepal (0 Jari):</span> 5 Menit</li>
-                <li><span className="font-mono">1 Jari:</span> 10 Menit</li>
-                <li><span className="font-mono">2 Jari:</span> 20 Menit</li>
-                <li><span className="font-mono">5 Jari:</span> 1 Jam</li>
-              </ul>
-            </div>
-            <p className="pt-2">Tahan gestur lengkap dengan kedua tangan selama 2 detik untuk mengirim perintah.</p>
           </AlertDescription>
         </Alert>
       </CardContent>
