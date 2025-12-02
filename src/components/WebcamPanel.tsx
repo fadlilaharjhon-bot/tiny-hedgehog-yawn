@@ -1,160 +1,260 @@
 import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Info, Video, VideoOff, Loader2, Waves } from "lucide-react";
+import { Info, Video, VideoOff, Loader2, Hand } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { useMqtt } from "@/components/MqttProvider";
+import {
+  HandLandmarker,
+  FilesetResolver,
+  DrawingUtils,
+} from "@mediapipe/tasks-vision";
 
-const TIMER_TRIGGER_TOPIC = "POLINES/TIMER/START";
-const MOTION_THRESHOLD = 20; // Sensitivitas gerakan (lebih rendah = lebih sensitif)
-const VALIDATION_TIME = 1.0; // Deteksi gerakan harus stabil selama 1 detik
+const ROOM_COMMAND_TOPIC = "POLINES/LAMPU_RUANG/COMMAND";
 
 const WebcamPanel = () => {
   const { publish, connectionStatus } = useMqtt();
   const [isWebcamRunning, setIsWebcamRunning] = useState(false);
-  const [statusMessage, setStatusMessage] = useState("Mencari perangkat kamera...");
+  const [statusMessage, setStatusMessage] = useState("Memuat model deteksi...");
   const [hasError, setHasError] = useState(false);
-  const [motionDetected, setMotionDetected] = useState(false);
-  const [validationProgress, setValidationProgress] = useState(0);
-  const [sentStatus, setSentStatus] = useState(false);
+  const [gestureOutput, setGestureOutput] = useState(
+    "Arahkan tangan ke kamera",
+  );
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const lastFrameData = useRef<Uint8ClampedArray | null>(null);
   const requestRef = useRef<number>();
-  const motionStartTime = useRef<number>(0);
-  const lastSentTime = useRef<number>(0);
+  const handLandmarker = useRef<HandLandmarker | null>(null);
+  const lastVideoTime = useRef(-1);
+
+  // State untuk logika deteksi gestur
+  const lastGesture = useRef<string | null>(null);
+  const gestureStartTime = useRef<number>(0);
+  const GESTURE_HOLD_TIME = 1000; // Tahan gestur selama 1 detik
+  const GESTURE_COOLDOWN = 2000; // Jeda 2 detik setelah perintah terkirim
+  const lastCommandTime = useRef<number>(0);
 
   useEffect(() => {
-    let stream: MediaStream;
-    const startWebcam = async () => {
+    const createHandLandmarker = async () => {
       try {
-        stream = await navigator.mediaDevices.getUserMedia({ video: true });
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-          videoRef.current.onloadeddata = () => {
-            setIsWebcamRunning(true);
-            setStatusMessage("Deteksi gerakan aktif.");
-            requestRef.current = requestAnimationFrame(detectMotion);
-          };
-        }
-      } catch (err) {
-        console.error("Gagal memulai kamera:", err);
-        setStatusMessage("Izin kamera ditolak atau tidak ada kamera.");
+        const vision = await FilesetResolver.forVisionTasks("/mediapipe");
+        const landmarker = await HandLandmarker.createFromOptions(vision, {
+          baseOptions: {
+            modelAssetPath: `/mediapipe/hand_landmarker.task`,
+            delegate: "GPU",
+          },
+          runningMode: "VIDEO",
+          numHands: 1,
+        });
+        handLandmarker.current = landmarker;
+        setStatusMessage("Model siap. Menunggu izin kamera...");
+        startWebcam();
+      } catch (e) {
+        console.error("Gagal memuat model HandLandmarker:", e);
+        setStatusMessage("Gagal memuat model deteksi.");
         setHasError(true);
       }
     };
-    startWebcam();
+    createHandLandmarker();
+
     return () => {
-      if (requestRef.current) cancelAnimationFrame(requestRef.current);
-      stream?.getTracks().forEach(track => track.stop());
+      if (requestRef.current) {
+        cancelAnimationFrame(requestRef.current);
+      }
+      handLandmarker.current?.close();
     };
   }, []);
 
-  const triggerAction = () => {
-    if (connectionStatus === "Connected") {
-      const payload = JSON.stringify({ command: "start_timer", timestamp: Date.now() });
-      publish(TIMER_TRIGGER_TOPIC, payload);
-      console.log(`Published to ${TIMER_TRIGGER_TOPIC}:`, payload);
-      setSentStatus(true);
-      setTimeout(() => setSentStatus(false), 1500);
-    } else {
-      console.warn("MQTT tidak terhubung, perintah tidak dikirim.");
+  const startWebcam = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { width: 640, height: 480 },
+      });
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        videoRef.current.addEventListener("loadeddata", () => {
+          setIsWebcamRunning(true);
+          setStatusMessage("Deteksi gestur aktif.");
+          requestRef.current = requestAnimationFrame(predictWebcam);
+        });
+      }
+    } catch (err) {
+      console.error("Gagal memulai kamera:", err);
+      setStatusMessage("Izin kamera ditolak atau tidak ada kamera.");
+      setHasError(true);
     }
   };
 
-  const detectMotion = () => {
-    if (!videoRef.current || !canvasRef.current || !isWebcamRunning) {
-      requestRef.current = requestAnimationFrame(detectMotion);
+  const countFingers = (landmarks: any[], handedness: string) => {
+    if (landmarks.length === 0) return 0;
+
+    const tipIds = [4, 8, 12, 16, 20];
+    let fingers = 0;
+    const isRightHand = handedness === "Right";
+
+    // Ibu Jari
+    if (isRightHand) {
+      if (landmarks[tipIds[0]].x < landmarks[tipIds[0] - 1].x) fingers++;
+    } else {
+      if (landmarks[tipIds[0]].x > landmarks[tipIds[0] - 1].x) fingers++;
+    }
+
+    // 4 Jari Lainnya
+    for (let i = 1; i < 5; i++) {
+      if (landmarks[tipIds[i]].y < landmarks[tipIds[i] - 2].y) {
+        fingers++;
+      }
+    }
+    return fingers;
+  };
+
+  const predictWebcam = async () => {
+    if (!videoRef.current || !canvasRef.current || !handLandmarker.current) {
+      requestRef.current = requestAnimationFrame(predictWebcam);
       return;
     }
+
     const video = videoRef.current;
     const canvas = canvasRef.current;
-    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    const canvasCtx = canvas.getContext("2d");
 
-    if (ctx && video.readyState >= 2) {
+    if (canvasCtx && video.currentTime !== lastVideoTime.current) {
+      lastVideoTime.current = video.currentTime;
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-      const currentFrame = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      let isMotion = false;
+      const results = handLandmarker.current.detectForVideo(
+        video,
+        performance.now(),
+      );
 
-      if (lastFrameData.current) {
-        let diff = 0;
-        for (let i = 0; i < currentFrame.data.length; i += 4) {
-          const r1 = lastFrameData.current[i];
-          const g1 = lastFrameData.current[i + 1];
-          const b1 = lastFrameData.current[i + 2];
-          const r2 = currentFrame.data[i];
-          const g2 = currentFrame.data[i + 1];
-          const b2 = currentFrame.data[i + 2];
-          diff += Math.abs(r1 - r2) + Math.abs(g1 - g2) + Math.abs(b1 - b2);
-        }
-        const avgDiff = diff / (currentFrame.data.length / 4);
-        if (avgDiff > MOTION_THRESHOLD) {
-          isMotion = true;
-        }
-      }
-      
-      setMotionDetected(isMotion);
-      lastFrameData.current = currentFrame.data;
+      canvasCtx.save();
+      canvasCtx.clearRect(0, 0, canvas.width, canvas.height);
 
-      if (isMotion) {
-        if (motionStartTime.current === 0) {
-          motionStartTime.current = performance.now();
-        }
-        const elapsedTime = (performance.now() - motionStartTime.current) / 1000;
-        const progress = Math.min(elapsedTime / VALIDATION_TIME, 1.0);
-        setValidationProgress(progress);
+      if (results.landmarks && results.landmarks.length > 0) {
+        const landmarks = results.landmarks[0];
+        const handedness = results.handednesses[0][0].categoryName;
 
-        if (elapsedTime >= VALIDATION_TIME && (performance.now() - lastSentTime.current > 3000)) { // Cooldown 3 detik
-          triggerAction();
-          lastSentTime.current = performance.now();
-          motionStartTime.current = 0; // Reset timer
+        const drawingUtils = new DrawingUtils(canvasCtx);
+        drawingUtils.drawConnectors(
+          landmarks,
+          HandLandmarker.HAND_CONNECTIONS,
+          { color: "#00FF00", lineWidth: 5 },
+        );
+        drawingUtils.drawLandmarks(landmarks, { color: "#FF0000", lineWidth: 2 });
+
+        const fingerCount = countFingers(landmarks, handedness);
+        const currentGesture = `${fingerCount} Jari`;
+        const now = performance.now();
+
+        if (now - lastCommandTime.current < GESTURE_COOLDOWN) {
+          setGestureOutput("Cooldown...");
+        } else {
+          if (currentGesture !== lastGesture.current) {
+            lastGesture.current = currentGesture;
+            gestureStartTime.current = now;
+            setGestureOutput(`Deteksi: ${currentGesture}`);
+          } else {
+            if (now - gestureStartTime.current > GESTURE_HOLD_TIME) {
+              let command = {};
+              switch (fingerCount) {
+                case 0: command = { command: "all_off" }; break;
+                case 1: command = { toggle_lamp1: true }; break;
+                case 2: command = { toggle_lamp2: true }; break;
+                case 3: command = { toggle_lamp3: true }; break;
+                case 5: command = { command: "all_on" }; break;
+                default: break;
+              }
+
+              if (Object.keys(command).length > 0 && connectionStatus === "Connected") {
+                publish(ROOM_COMMAND_TOPIC, JSON.stringify(command));
+                setGestureOutput(`Perintah Terkirim: ${currentGesture}`);
+                lastCommandTime.current = now;
+                gestureStartTime.current = 0;
+              }
+            } else {
+              const progress = Math.round(((now - gestureStartTime.current) / GESTURE_HOLD_TIME) * 100);
+              setGestureOutput(`Tahan: ${currentGesture} (${progress}%)`);
+            }
+          }
         }
       } else {
-        motionStartTime.current = 0;
-        setValidationProgress(0);
+        setGestureOutput("Arahkan tangan ke kamera");
+        lastGesture.current = null;
+        gestureStartTime.current = 0;
       }
+      canvasCtx.restore();
     }
-    requestRef.current = requestAnimationFrame(detectMotion);
+    requestRef.current = requestAnimationFrame(predictWebcam);
   };
 
   return (
     <Card className="bg-slate-800/50 backdrop-blur-sm border-slate-700 text-white">
       <CardHeader>
-        <CardTitle>Panel Pemicu Timer (Deteksi Gerakan)</CardTitle>
+        <CardTitle>Panel Kontrol Gestur Tangan</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="relative aspect-video w-full bg-slate-900 rounded-md flex items-center justify-center overflow-hidden">
-          <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover transform scaleX(-1)"></video>
-          <canvas ref={canvasRef} className="absolute top-0 left-0 w-full h-full transform scaleX(-1) opacity-50"></canvas>
+          <video
+            ref={videoRef}
+            autoPlay
+            playsInline
+            muted
+            className="w-full h-full object-cover transform scaleX(-1)"
+          ></video>
+          <canvas
+            ref={canvasRef}
+            className="absolute top-0 left-0 w-full h-full transform scaleX(-1)"
+          ></canvas>
           <div className="absolute top-2 left-2 bg-black/50 p-2 rounded-md flex items-center gap-2">
-            <Waves className={`w-5 h-5 transition-colors ${motionDetected ? 'text-sky-400' : 'text-slate-500'}`} />
-            <p className="text-lg font-bold">Status: {motionDetected ? "Bergerak" : "Diam"}</p>
+            <Hand className="w-5 h-5 text-sky-400" />
+            <p className="text-lg font-bold">{gestureOutput}</p>
           </div>
-          <div className="absolute bottom-2 left-2 right-2">
-            <div className="w-full bg-gray-600 rounded-full h-4">
-              <div className="bg-green-500 h-4 rounded-full transition-all duration-100" style={{ width: `${validationProgress * 100}%` }}></div>
-            </div>
-          </div>
-          {sentStatus && (
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-12 bg-green-500/80 text-white text-2xl font-bold px-6 py-3 rounded-lg">
-              SINYAL TERKIRIM!
-            </div>
-          )}
         </div>
-        
-        <div className={`flex items-center justify-center p-3 rounded-md text-sm font-medium ${hasError ? 'bg-red-900/50 text-red-300' : 'bg-slate-700/50 text-slate-300'}`}>
-          {isWebcamRunning ? <Video className="w-5 h-5 mr-2 text-green-400" /> : (hasError ? <VideoOff className="w-5 h-5 mr-2" /> : <Loader2 className="w-5 h-5 mr-2 animate-spin" />)}
+
+        <div
+          className={`flex items-center justify-center p-3 rounded-md text-sm font-medium ${
+            hasError
+              ? "bg-red-900/50 text-red-300"
+              : "bg-slate-700/50 text-slate-300"
+          }`}
+        >
+          {isWebcamRunning ? (
+            <Video className="w-5 h-5 mr-2 text-green-400" />
+          ) : hasError ? (
+            <VideoOff className="w-5 h-5 mr-2" />
+          ) : (
+            <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+          )}
           {statusMessage}
         </div>
 
         <Alert className="bg-slate-700/50 border-slate-600">
           <Info className="h-4 w-4 text-sky-400" />
           <AlertTitle className="text-sky-300">Cara Penggunaan</AlertTitle>
-          <AlertDescription className="text-slate-300">
-            Cukup **lambaikan tangan Anda** di depan kamera secara terus-menerus selama 1 detik hingga bar validasi penuh untuk mengirim sinyal timer.
+          <AlertDescription className="text-slate-300 space-y-1">
+            <p>
+              Tahan gestur di depan kamera selama 1 detik untuk mengirim
+              perintah:
+            </p>
+            <ul className="list-disc list-inside pl-2">
+              <li>
+                <span className="font-mono">1 Jari:</span> Toggle Lampu R. Tamu
+              </li>
+              <li>
+                <span className="font-mono">2 Jari:</span> Toggle Lampu R. Keluarga
+              </li>
+              <li>
+                <span className="font-mono">3 Jari:</span> Toggle Lampu K. Tidur
+              </li>
+              <li>
+                <span className="font-mono">5 Jari (Telapak Terbuka):</span>{" "}
+                Nyalakan Semua Lampu
+              </li>
+              <li>
+                <span className="font-mono">0 Jari (Mengepal):</span> Matikan
+                Semua Lampu
+              </li>
+            </ul>
           </AlertDescription>
         </Alert>
       </CardContent>
