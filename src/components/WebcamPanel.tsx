@@ -31,19 +31,17 @@ const WebcamPanel = () => {
   useEffect(() => {
     const createHandLandmarker = async () => {
       try {
-        // --- PERUBAHAN KUNCI: MEMUAT DARI CDN ---
         const vision = await FilesetResolver.forVisionTasks(
           "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.9/wasm"
         );
         const landmarker = await HandLandmarker.createFromOptions(vision, {
           baseOptions: {
             modelAssetPath: `https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task`,
-            delegate: "CPU", // Menggunakan CPU untuk kompatibilitas maksimal
+            delegate: "CPU",
           },
           runningMode: "VIDEO",
           numHands: 1,
         });
-        // --- AKHIR PERUBAHAN ---
 
         handLandmarker.current = landmarker;
         setStatusMessage("Model siap. Menunggu izin kamera...");
@@ -79,30 +77,48 @@ const WebcamPanel = () => {
     }
   };
 
-  // Fungsi hitung jari, diadaptasi dari skrip Python
   const countFingers = (landmarks: any[], handedness: string) => {
     if (landmarks.length === 0) return 0;
     const tipIds = [4, 8, 12, 16, 20];
     let fingers = 0;
-    const isLeftHand = handedness === "Left";
 
-    // Ibu Jari (Thumb)
-    if (isLeftHand) {
-      if (landmarks[tipIds[0]].x > landmarks[tipIds[0] - 1].x) fingers++;
-    } else { // Tangan Kanan
-      if (landmarks[tipIds[0]].x < landmarks[tipIds[0] - 1].x) fingers++;
-    }
-
-    // 4 Jari Lainnya
+    // --- Logika untuk 4 Jari (Telunjuk, Tengah, Manis, Kelingking) ---
+    // Logika ini sudah robust karena membandingkan sumbu Y (atas/bawah).
     for (let i = 1; i < 5; i++) {
       if (landmarks[tipIds[i]].y < landmarks[tipIds[i] - 2].y) {
         fingers++;
       }
     }
+
+    // --- Logika Baru yang Lebih Robust untuk Ibu Jari ---
+    // Memperhitungkan tangan Kanan/Kiri dan orientasi Telapak/Punggung.
+    const isLeftHand = handedness === "Left";
+    const thumbTip = landmarks[tipIds[0]];
+    const thumbIpJoint = landmarks[tipIds[0] - 1];
+    const indexFingerKnuckle = landmarks[5];
+    const pinkyFingerKnuckle = landmarks[17];
+
+    if (isLeftHand) {
+      // Tangan fisik KIRI, tampak seperti tangan KANAN di layar (ibu jari di KIRI)
+      const isPalmFacing = indexFingerKnuckle.x > pinkyFingerKnuckle.x;
+      if (isPalmFacing) {
+        if (thumbTip.x < thumbIpJoint.x) fingers++;
+      } else { // Punggung tangan
+        if (thumbTip.x > thumbIpJoint.x) fingers++;
+      }
+    } else { // Tangan Kanan
+      // Tangan fisik KANAN, tampak seperti tangan KIRI di layar (ibu jari di KANAN)
+      const isPalmFacing = indexFingerKnuckle.x < pinkyFingerKnuckle.x;
+      if (isPalmFacing) {
+        if (thumbTip.x > thumbIpJoint.x) fingers++;
+      } else { // Punggung tangan
+        if (thumbTip.x < thumbIpJoint.x) fingers++;
+      }
+    }
+
     return fingers;
   };
 
-  // Fungsi proses gestur, diadaptasi dari skrip Python
   const processGesture = (fingerCount: number) => {
     let command = {};
     switch (fingerCount) {
@@ -111,7 +127,7 @@ const WebcamPanel = () => {
       case 2: command = { toggle_lamp2: true }; break;
       case 3: command = { toggle_lamp3: true }; break;
       case 5: command = { command: "all_on" }; break;
-      default: return; // Tidak ada aksi untuk gestur lain
+      default: return;
     }
 
     if (connectionStatus === "Connected") {
