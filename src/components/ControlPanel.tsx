@@ -4,14 +4,12 @@ import { Slider } from "@/components/ui/slider";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { Lightbulb, LightbulbOff } from "lucide-react";
 
 interface ControlPanelProps {
   mode: "auto" | "manual";
   setMode: (mode: "auto" | "manual") => void;
-  toggleLamp: (lampIndex: number) => void;
-  lampStates: { terrace: boolean; livingRoom: boolean; bedroom: boolean; };
-  threshold: number;
+  toggleLamp: () => void;
+  threshold: number; // Menerima nilai 0-100
   setThreshold: (value: number) => void;
   disabled?: boolean;
 }
@@ -20,18 +18,11 @@ const ControlPanel = ({
   mode,
   setMode,
   toggleLamp,
-  lampStates,
   threshold,
   setThreshold,
   disabled = false,
 }: ControlPanelProps) => {
   const isManualModeDisabled = mode !== 'manual' || disabled;
-
-  const lampControls = [
-    { name: "Teras", state: lampStates.terrace, index: 1 },
-    { name: "R. Tamu", state: lampStates.livingRoom, index: 2 },
-    { name: "K. Tidur", state: lampStates.bedroom, index: 3 },
-  ];
 
   return (
     <Card className="bg-slate-800/50 backdrop-blur-sm border-slate-700 text-white">
@@ -58,22 +49,11 @@ const ControlPanel = ({
           </div>
         </div>
 
-        <div className="space-y-3">
+        <div className="space-y-2">
           <Label className={cn(isManualModeDisabled && "text-gray-500")}>Kontrol Lampu (Manual)</Label>
-          <div className="grid grid-cols-3 gap-2">
-            {lampControls.map((lamp) => (
-              <Button 
-                key={lamp.index} 
-                onClick={() => toggleLamp(lamp.index)} 
-                disabled={isManualModeDisabled} 
-                variant={lamp.state ? "default" : "outline"}
-                className="flex flex-col h-auto py-2"
-              >
-                {lamp.state ? <Lightbulb className="w-5 h-5 mb-1" /> : <LightbulbOff className="w-5 h-5 mb-1" />}
-                <span className="text-xs">{lamp.name}</span>
-              </Button>
-            ))}
-          </div>
+          <Button onClick={toggleLamp} disabled={isManualModeDisabled} className="w-full">
+            Nyalakan / Matikan Lampu
+          </Button>
         </div>
 
         <div>
@@ -90,6 +70,10 @@ const ControlPanel = ({
             onValueChange={(value) => setThreshold(value[0])}
             disabled={disabled}
           />
+          <div className="flex justify-between text-xs text-slate-400 mt-1">
+            <span>Gelap</span>
+            <span>Terang</span>
+          </div>
         </div>
       </CardContent>
     </Card>
