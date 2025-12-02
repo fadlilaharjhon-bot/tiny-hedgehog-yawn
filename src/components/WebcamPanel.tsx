@@ -24,7 +24,6 @@ const WebcamPanel = () => {
   const lastSentGestureRef = useRef<number>(-1);
   const validationTime = 1.0; // 1 second
 
-  // 1. Inisialisasi Model MediaPipe dari CDN
   useEffect(() => {
     const createHandLandmarker = async () => {
       try {
@@ -34,12 +33,10 @@ const WebcamPanel = () => {
         const landmarker = await HandLandmarker.createFromOptions(vision, {
           baseOptions: {
             modelAssetPath: `https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task`,
-            // PERUBAHAN 1: Menggunakan CPU untuk kompatibilitas maksimal
             delegate: "CPU",
           },
           runningMode: "VIDEO",
           numHands: 1,
-          // PERUBAHAN 2: Menurunkan ambang batas agar lebih mudah mendeteksi
           minHandDetectionConfidence: 0.3,
           minTrackingConfidence: 0.3,
         });
@@ -54,7 +51,6 @@ const WebcamPanel = () => {
     createHandLandmarker();
   }, []);
 
-  // 2. Mulai webcam secara otomatis setelah model siap
   useEffect(() => {
     if (!handLandmarker || isWebcamRunning) return;
 
@@ -118,7 +114,10 @@ const WebcamPanel = () => {
   };
 
   const predictWebcam = async () => {
-    if (!videoRef.current || !canvasRef.current || !handLandmarker || !isWebcamRunning) return;
+    if (!videoRef.current || !canvasRef.current || !handLandmarker || !isWebcamRunning) {
+      requestRef.current = requestAnimationFrame(predictWebcam);
+      return;
+    }
 
     const video = videoRef.current;
     const canvas = canvasRef.current;
@@ -135,14 +134,21 @@ const WebcamPanel = () => {
       
       let currentFingers = -1;
 
-      if (results.landmarks && results.landmarks.length > 0 && results.handedness && results.handedness.length > 0) {
+      // PERUBAHAN UTAMA: Membuat kode lebih tangguh
+      if (results.landmarks && results.landmarks.length > 0) {
         const handLandmarks = results.landmarks[0];
-        const handedness = results.handedness[0][0].categoryName;
-        const drawingUtils = new DrawingUtils(canvasCtx);
         
+        // Menggambar landmark tangan
+        const drawingUtils = new DrawingUtils(canvasCtx);
         drawingUtils.drawConnectors(handLandmarks, HandLandmarker.HAND_CONNECTIONS, { color: "#FFFFFF", lineWidth: 5 });
         drawingUtils.drawLandmarks(handLandmarks, { color: "#38bdf8", radius: 8 });
 
+        // Menghitung jari
+        // Default ke 'Right' jika info tangan tidak tersedia untuk mencegah crash
+        const handedness = (results.handedness && results.handedness[0] && results.handedness[0][0]) 
+                           ? results.handedness[0][0].categoryName 
+                           : 'Right';
+        
         const fingerTips = [8, 12, 16, 20];
         const thumbTip = 4;
         let fingers = 0;
