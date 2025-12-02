@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { HandLandmarker, FilesetResolver, DrawingUtils } from "@mediapipe/tasks-vision";
-import { Play, Square, Info, Video, VideoOff, Loader2 } from "lucide-react";
+import { Info, Video, VideoOff, Loader2 } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 const NODE_RED_URL = "http://127.0.0.1:1880/gesture-command";
@@ -12,8 +12,7 @@ const WebcamPanel = () => {
   const [detectedGesture, setDetectedGesture] = useState<number>(-1);
   const [validationProgress, setValidationProgress] = useState(0);
   const [sentStatus, setSentStatus] = useState(false);
-  const [selectedDeviceId, setSelectedDeviceId] = useState<string>('');
-  const [statusMessage, setStatusMessage] = useState("Memuat model deteksi...");
+  const [statusMessage, setStatusMessage] = useState("Mengunduh model deteksi...");
   const [hasError, setHasError] = useState(false);
 
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -25,14 +24,17 @@ const WebcamPanel = () => {
   const lastSentGestureRef = useRef<number>(-1);
   const validationTime = 1.0; // 1 second
 
-  // 1. Inisialisasi Model MediaPipe
+  // 1. Inisialisasi Model MediaPipe dari CDN
   useEffect(() => {
     const createHandLandmarker = async () => {
       try {
-        const vision = await FilesetResolver.forVisionTasks("/mediapipe");
+        // Menggunakan CDN untuk memuat file-file penting. Ini jauh lebih stabil.
+        const vision = await FilesetResolver.forVisionTasks(
+          "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.9/wasm"
+        );
         const landmarker = await HandLandmarker.createFromOptions(vision, {
           baseOptions: {
-            modelAssetPath: `/mediapipe/hand_landmarker.task`,
+            modelAssetPath: `https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task`,
             delegate: "GPU",
           },
           runningMode: "VIDEO",
@@ -41,55 +43,27 @@ const WebcamPanel = () => {
           minTrackingConfidence: 0.5,
         });
         setHandLandmarker(landmarker);
-        setStatusMessage("Mencari perangkat kamera...");
+        setStatusMessage("Model siap. Mencari perangkat kamera...");
       } catch (e) {
-        console.error("Gagal memuat model HandLandmarker:", e);
-        setStatusMessage("Gagal memuat model deteksi.");
+        console.error("Gagal total memuat model HandLandmarker. Detail error:", e);
+        setStatusMessage("Gagal memuat model deteksi. Cek konsol untuk detail.");
         setHasError(true);
       }
     };
     createHandLandmarker();
   }, []);
 
-  // 2. Dapatkan perangkat kamera setelah model siap
+  // 2. Mulai webcam secara otomatis setelah model siap
   useEffect(() => {
-    if (!handLandmarker) return;
-
-    const getCameraDevice = async () => {
-      try {
-        // Minta izin dulu untuk memastikan daftar perangkat tidak kosong
-        await navigator.mediaDevices.getUserMedia({ video: true });
-        const devices = await navigator.mediaDevices.enumerateDevices();
-        const videoInputs = devices.filter(device => device.kind === 'videoinput');
-        
-        if (videoInputs.length > 0) {
-          setSelectedDeviceId(videoInputs[0].deviceId);
-          setStatusMessage("Mempersiapkan kamera...");
-        } else {
-          setStatusMessage("Tidak ada kamera yang ditemukan.");
-          setHasError(true);
-        }
-      } catch (err) {
-        console.error("Error mendapatkan izin atau perangkat kamera:", err);
-        setStatusMessage("Izin kamera ditolak atau tidak ada kamera.");
-        setHasError(true);
-      }
-    };
-    getCameraDevice();
-  }, [handLandmarker]);
-
-  // 3. Mulai webcam secara otomatis setelah perangkat dipilih
-  useEffect(() => {
-    if (!selectedDeviceId || !handLandmarker || isWebcamRunning) return;
+    if (!handLandmarker || isWebcamRunning) return;
 
     const videoElement = videoRef.current;
     let stream: MediaStream;
 
     const startWebcam = async () => {
       try {
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: { deviceId: { exact: selectedDeviceId } }
-        });
+        // Minta izin dan dapatkan stream kamera
+        stream = await navigator.mediaDevices.getUserMedia({ video: true });
         if (videoElement) {
           videoElement.srcObject = stream;
           videoElement.onloadeddata = () => {
@@ -100,7 +74,7 @@ const WebcamPanel = () => {
         }
       } catch (err) {
         console.error("Gagal memulai stream kamera:", err);
-        setStatusMessage("Gagal memulai kamera.");
+        setStatusMessage("Izin kamera ditolak atau tidak ada kamera.");
         setHasError(true);
       }
     };
@@ -114,7 +88,7 @@ const WebcamPanel = () => {
       }
       stream?.getTracks().forEach(track => track.stop());
     };
-  }, [selectedDeviceId, handLandmarker]);
+  }, [handLandmarker]);
 
   const sendCommand = async (command: object) => {
     try {
@@ -145,7 +119,7 @@ const WebcamPanel = () => {
   };
 
   const predictWebcam = async () => {
-    if (!videoRef.current || !canvasRef.current || !handLandmarker) return;
+    if (!videoRef.current || !canvasRef.current || !handLandmarker || !isWebcamRunning) return;
 
     const video = videoRef.current;
     const canvas = canvasRef.current;
