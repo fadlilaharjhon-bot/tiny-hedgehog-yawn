@@ -125,7 +125,7 @@ const ControlPanel = ({
           <div className="flex items-center justify-around p-2">
             <LampButton label="R. Tamu" status={roomLampStatus.lamp1} lampKey="lamp1" onToggle={onToggleRoomLamp} disabled={disabled} />
             <LampButton label="R. Keluarga" status={roomLampStatus.lamp2} lampKey="lamp2" onToggle={onToggleRoomLamp} disabled={disabled} />
-            <LampButton label="Dapur" status={roomLampStatus.lamp3} lampKey="lamp3" onToggle={onToggleRoomLamp} disabled={disabled} />
+            <LampButton label="K. Tidur" status={roomLampStatus.lamp3} lampKey="lamp3" onToggle={onToggleRoomLamp} disabled={disabled} />
           </div>
           <div className="flex justify-center gap-4 mt-6">
             <Button onClick={onAllOn} disabled={disabled} variant="secondary" size="sm" className="bg-green-600/80 hover:bg-green-500">

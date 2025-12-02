@@ -5,7 +5,7 @@ interface LightStates {
   terrace: boolean;
   guestRoom: boolean; // Lampu 1
   livingRoom: boolean; // Lampu 2
-  kitchen: boolean; // Lampu 3
+  kitchen: boolean; // Lampu 3 (nama variabel tetap, hanya label visual yang berubah)
 }
 
 interface HouseStatusProps {
@@ -17,7 +17,7 @@ const HouseStatus = ({ lights }: HouseStatusProps) => {
     terrace: isTerraceOn, 
     guestRoom: isGuestRoomOn, 
     livingRoom: isLivingRoomOn, 
-    kitchen: isKitchenOn 
+    kitchen: isBedroomOn // Mengganti nama variabel agar lebih jelas
   } = lights;
 
   return (
@@ -71,8 +71,8 @@ const HouseStatus = ({ lights }: HouseStatusProps) => {
             <rect x="81" y="11" width="58" height="138" className={`transition-colors duration-500 ${isGuestRoomOn ? 'fill-yellow-400/30' : 'fill-slate-700/50'}`} />
             {isGuestRoomOn && <rect x="81" y="11" width="58" height="138" className="fill-yellow-300" filter="url(#light-glow)" />}
 
-            <rect x="141" y="81" width="48" height="68" className={`transition-colors duration-500 ${isKitchenOn ? 'fill-yellow-400/30' : 'fill-slate-700/50'}`} />
-            {isKitchenOn && <rect x="141" y="81" width="48" height="68" className="fill-yellow-300" filter="url(#light-glow)" />}
+            <rect x="141" y="81" width="48" height="68" className={`transition-colors duration-500 ${isBedroomOn ? 'fill-yellow-400/30' : 'fill-slate-700/50'}`} />
+            {isBedroomOn && <rect x="141" y="81" width="48" height="68" className="fill-yellow-300" filter="url(#light-glow)" />}
 
             {/* Static rooms */}
             <rect x="11" y="11" width="68" height="68" className="fill-slate-700/50" />
@@ -82,11 +82,11 @@ const HouseStatus = ({ lights }: HouseStatusProps) => {
             <path d="M 80 10 V 160 M 140 10 V 160 M 10 80 H 190 M 140 80 H 190" className="stroke-slate-500" strokeWidth="1.5" />
             
             {/* Room Labels with dynamic text color */}
-            <text x="45" y="45" textAnchor="middle" className="fill-slate-400 text-[8px] font-sans">K. Tidur</text>
+            <text x="45" y="45" textAnchor="middle" className="fill-slate-400 text-[8px] font-sans">K. Tidur Utama</text>
             <text x="45" y="120" textAnchor="middle" className={`text-[8px] font-sans transition-colors ${isLivingRoomOn ? 'fill-slate-900 font-bold' : 'fill-slate-400'}`}>R. Keluarga</text>
             <text x="110" y="85" textAnchor="middle" className={`text-[8px] font-sans transition-colors ${isGuestRoomOn ? 'fill-slate-900 font-bold' : 'fill-slate-400'}`}>R. Tamu</text>
             <text x="165" y="45" textAnchor="middle" className="fill-slate-400 text-[8px] font-sans">K. Mandi</text>
-            <text x="165" y="120" textAnchor="middle" className={`text-[8px] font-sans transition-colors ${isKitchenOn ? 'fill-slate-900 font-bold' : 'fill-slate-400'}`}>Dapur</text>
+            <text x="165" y="120" textAnchor="middle" className={`text-[8px] font-sans transition-colors ${isBedroomOn ? 'fill-slate-900 font-bold' : 'fill-slate-400'}`}>K. Tidur</text>
           </g>
         </svg>
       </CardContent>
