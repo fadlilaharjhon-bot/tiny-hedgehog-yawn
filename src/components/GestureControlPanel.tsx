@@ -1,6 +1,6 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Lightbulb, LightbulbOff } from "lucide-react";
+import { Lightbulb, LightbulbOff, Zap, ZapOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface LampStatus {
@@ -12,10 +12,12 @@ interface LampStatus {
 interface GestureControlPanelProps {
   lampStatus: LampStatus;
   onToggle: (lamp: 'lamp1' | 'lamp2' | 'lamp3') => void;
+  onAllOn: () => void;
+  onAllOff: () => void;
   disabled?: boolean;
 }
 
-const GestureControlPanel = ({ lampStatus, onToggle, disabled = false }: GestureControlPanelProps) => {
+const GestureControlPanel = ({ lampStatus, onToggle, onAllOn, onAllOff, disabled = false }: GestureControlPanelProps) => {
   const LampButton = ({ label, status, lampKey }: { label: string; status: boolean; lampKey: 'lamp1' | 'lamp2' | 'lamp3' }) => (
     <div className="flex flex-col items-center gap-2">
       <span className={cn("font-medium", disabled && "text-gray-500")}>{label}</span>
@@ -46,6 +48,16 @@ const GestureControlPanel = ({ lampStatus, onToggle, disabled = false }: Gesture
           <LampButton label="Lampu Ruang 3" status={lampStatus.lamp3} lampKey="lamp3" />
         </div>
       </CardContent>
+      <CardFooter className="flex justify-center gap-4 border-t border-slate-700 pt-4">
+        <Button onClick={onAllOn} disabled={disabled} variant="secondary" className="bg-green-600/80 hover:bg-green-500">
+          <Zap className="w-4 h-4 mr-2" />
+          Nyalakan Semua
+        </Button>
+        <Button onClick={onAllOff} disabled={disabled} variant="destructive" className="bg-red-600/80 hover:bg-red-500">
+          <ZapOff className="w-4 h-4 mr-2" />
+          Matikan Semua
+        </Button>
+      </CardFooter>
     </Card>
   );
 };

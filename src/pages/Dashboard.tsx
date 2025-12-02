@@ -5,7 +5,7 @@ import ControlPanel from "@/components/ControlPanel";
 import IntensityChart from "@/components/IntensityChart";
 import WelcomeHeader from "@/components/WelcomeHeader";
 import GestureControlPanel from "@/components/GestureControlPanel";
-import WebcamPanel from "@/components/WebcamPanel"; // Impor komponen baru
+import WebcamPanel from "@/components/WebcamPanel";
 import { useMqtt } from "@/components/MqttProvider";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -46,7 +46,6 @@ const Dashboard = () => {
   useEffect(() => {
     if (!client || !isConnected) return;
 
-    // Subscribe ke semua topik yang relevan
     client.subscribe(TOPIC_LDR_STATUS);
     client.subscribe(TOPIC_ROOM_STATUS);
 
@@ -113,6 +112,14 @@ const Dashboard = () => {
     publish(TOPIC_ROOM_COMMAND, JSON.stringify(command));
   };
 
+  const handleAllOn = () => {
+    publish(TOPIC_ROOM_COMMAND, JSON.stringify({ command: "all_on" }));
+  };
+
+  const handleAllOff = () => {
+    publish(TOPIC_ROOM_COMMAND, JSON.stringify({ command: "all_off" }));
+  };
+
   return (
     <div className="min-h-screen w-full bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-900 text-white p-4 md:p-8">
       <div className="container mx-auto">
@@ -144,15 +151,15 @@ const Dashboard = () => {
             <IntensityChart data={chartData} />
           </div>
 
-          {/* Panel Webcam Baru */}
           <div className="lg:col-span-3">
             <WebcamPanel />
           </div>
 
-          {/* Komponen untuk sistem Lampu Ruangan */}
           <GestureControlPanel 
             lampStatus={roomLampStatus}
             onToggle={handleToggleRoomLamp}
+            onAllOn={handleAllOn}
+            onAllOff={handleAllOff}
             disabled={!isConnected}
           />
         </div>
