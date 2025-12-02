@@ -28,19 +28,20 @@ const WebcamPanel = () => {
   useEffect(() => {
     const createHandLandmarker = async () => {
       try {
-        // Menggunakan CDN untuk memuat file-file penting. Ini jauh lebih stabil.
         const vision = await FilesetResolver.forVisionTasks(
           "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.9/wasm"
         );
         const landmarker = await HandLandmarker.createFromOptions(vision, {
           baseOptions: {
             modelAssetPath: `https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task`,
-            delegate: "GPU",
+            // PERUBAHAN 1: Menggunakan CPU untuk kompatibilitas maksimal
+            delegate: "CPU",
           },
           runningMode: "VIDEO",
           numHands: 1,
-          minHandDetectionConfidence: 0.5,
-          minTrackingConfidence: 0.5,
+          // PERUBAHAN 2: Menurunkan ambang batas agar lebih mudah mendeteksi
+          minHandDetectionConfidence: 0.3,
+          minTrackingConfidence: 0.3,
         });
         setHandLandmarker(landmarker);
         setStatusMessage("Model siap. Mencari perangkat kamera...");
@@ -62,14 +63,13 @@ const WebcamPanel = () => {
 
     const startWebcam = async () => {
       try {
-        // Minta izin dan dapatkan stream kamera
         stream = await navigator.mediaDevices.getUserMedia({ video: true });
         if (videoElement) {
           videoElement.srcObject = stream;
           videoElement.onloadeddata = () => {
             setIsWebcamRunning(true);
             setStatusMessage("Deteksi gestur aktif.");
-            predictWebcam(); // Mulai loop deteksi
+            predictWebcam();
           };
         }
       } catch (err) {
@@ -81,7 +81,6 @@ const WebcamPanel = () => {
 
     startWebcam();
 
-    // Fungsi cleanup untuk mematikan kamera saat komponen dilepas
     return () => {
       if (requestRef.current) {
         cancelAnimationFrame(requestRef.current);
