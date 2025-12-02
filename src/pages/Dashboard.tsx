@@ -4,7 +4,6 @@ import HouseStatus from "@/components/HouseStatus";
 import ControlPanel from "@/components/ControlPanel";
 import IntensityChart from "@/components/IntensityChart";
 import WelcomeHeader from "@/components/WelcomeHeader";
-import GestureControlPanel from "@/components/GestureControlPanel";
 import WebcamPanel from "@/components/WebcamPanel";
 import { useMqtt } from "@/components/MqttProvider";
 import { useAuth } from "@/context/AuthContext";
@@ -91,7 +90,7 @@ const Dashboard = () => {
     publish(TOPIC_LDR_COMMAND, JSON.stringify({ mode: newMode }));
   };
 
-  const handleToggleLdrLamp = () => {
+  const handleToggleTerraceLamp = () => {
     if (mode === 'manual') {
       publish(TOPIC_LDR_COMMAND, JSON.stringify({ led: "toggle" }));
     }
@@ -136,7 +135,6 @@ const Dashboard = () => {
         {currentUser && <WelcomeHeader username={currentUser.username} />}
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Komponen untuk sistem LDR */}
           <LightIntensityGauge intensity={lightIntensity} />
           <HouseStatus 
             lights={{ 
@@ -149,9 +147,13 @@ const Dashboard = () => {
           <ControlPanel
             mode={mode}
             setMode={handleSetMode}
-            toggleLamp={handleToggleLdrLamp}
+            toggleTerraceLamp={handleToggleTerraceLamp}
             threshold={threshold}
             setThreshold={handleSetThreshold}
+            roomLampStatus={roomLampStatus}
+            onToggleRoomLamp={handleToggleRoomLamp}
+            onAllOn={handleAllOn}
+            onAllOff={handleAllOff}
             disabled={!isConnected}
           />
           <div className="lg:col-span-3">
@@ -161,14 +163,6 @@ const Dashboard = () => {
           <div className="lg:col-span-3">
             <WebcamPanel />
           </div>
-
-          <GestureControlPanel 
-            lampStatus={roomLampStatus}
-            onToggle={handleToggleRoomLamp}
-            onAllOn={handleAllOn}
-            onAllOff={handleAllOff}
-            disabled={!isConnected}
-          />
         </div>
       </div>
     </div>
