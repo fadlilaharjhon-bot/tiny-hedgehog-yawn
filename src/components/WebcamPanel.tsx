@@ -1,10 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { HandLandmarker, FilesetResolver, DrawingUtils } from "@mediapipe/tasks-vision";
-import { Play, Square, Info } from "lucide-react";
+import { Play, Square, Info, Video, VideoOff, Loader2 } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 const NODE_RED_URL = "http://127.0.0.1:1880/gesture-command";
@@ -15,8 +12,9 @@ const WebcamPanel = () => {
   const [detectedGesture, setDetectedGesture] = useState<number>(-1);
   const [validationProgress, setValidationProgress] = useState(0);
   const [sentStatus, setSentStatus] = useState(false);
-  const [videoDevices, setVideoDevices] = useState<MediaDeviceInfo[]>([]);
   const [selectedDeviceId, setSelectedDeviceId] = useState<string>('');
+  const [statusMessage, setStatusMessage] = useState("Memuat model deteksi...");
+  const [hasError, setHasError] = useState(false);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -27,47 +25,96 @@ const WebcamPanel = () => {
   const lastSentGestureRef = useRef<number>(-1);
   const validationTime = 1.0; // 1 second
 
-  // Inisialisasi Model MediaPipe dari file lokal
+  // 1. Inisialisasi Model MediaPipe
   useEffect(() => {
     const createHandLandmarker = async () => {
-      // Menunjuk ke folder public tempat file .wasm berada
-      const vision = await FilesetResolver.forVisionTasks("/mediapipe");
-      const landmarker = await HandLandmarker.createFromOptions(vision, {
-        baseOptions: {
-          // Memuat model dari file .task lokal
-          modelAssetPath: `/mediapipe/hand_landmarker.task`,
-          delegate: "GPU",
-        },
-        runningMode: "VIDEO",
-        numHands: 1,
-        minHandDetectionConfidence: 0.5, // Menggunakan nilai standar yang seimbang
-        minTrackingConfidence: 0.5,
-      });
-      setHandLandmarker(landmarker);
+      try {
+        const vision = await FilesetResolver.forVisionTasks("/mediapipe");
+        const landmarker = await HandLandmarker.createFromOptions(vision, {
+          baseOptions: {
+            modelAssetPath: `/mediapipe/hand_landmarker.task`,
+            delegate: "GPU",
+          },
+          runningMode: "VIDEO",
+          numHands: 1,
+          minHandDetectionConfidence: 0.5,
+          minTrackingConfidence: 0.5,
+        });
+        setHandLandmarker(landmarker);
+        setStatusMessage("Mencari perangkat kamera...");
+      } catch (e) {
+        console.error("Gagal memuat model HandLandmarker:", e);
+        setStatusMessage("Gagal memuat model deteksi.");
+        setHasError(true);
+      }
     };
     createHandLandmarker();
   }, []);
 
-  // Mendapatkan daftar perangkat kamera
+  // 2. Dapatkan perangkat kamera setelah model siap
   useEffect(() => {
-    const getDevices = async () => {
-      if (!navigator.mediaDevices?.enumerateDevices) {
-        console.log("enumerateDevices() not supported.");
-        return;
-      }
+    if (!handLandmarker) return;
+
+    const getCameraDevice = async () => {
       try {
+        // Minta izin dulu untuk memastikan daftar perangkat tidak kosong
+        await navigator.mediaDevices.getUserMedia({ video: true });
         const devices = await navigator.mediaDevices.enumerateDevices();
         const videoInputs = devices.filter(device => device.kind === 'videoinput');
-        setVideoDevices(videoInputs);
+        
         if (videoInputs.length > 0) {
           setSelectedDeviceId(videoInputs[0].deviceId);
+          setStatusMessage("Mempersiapkan kamera...");
+        } else {
+          setStatusMessage("Tidak ada kamera yang ditemukan.");
+          setHasError(true);
         }
       } catch (err) {
-        console.error("Error enumerating devices:", err);
+        console.error("Error mendapatkan izin atau perangkat kamera:", err);
+        setStatusMessage("Izin kamera ditolak atau tidak ada kamera.");
+        setHasError(true);
       }
     };
-    getDevices();
-  }, []);
+    getCameraDevice();
+  }, [handLandmarker]);
+
+  // 3. Mulai webcam secara otomatis setelah perangkat dipilih
+  useEffect(() => {
+    if (!selectedDeviceId || !handLandmarker || isWebcamRunning) return;
+
+    const videoElement = videoRef.current;
+    let stream: MediaStream;
+
+    const startWebcam = async () => {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { deviceId: { exact: selectedDeviceId } }
+        });
+        if (videoElement) {
+          videoElement.srcObject = stream;
+          videoElement.onloadeddata = () => {
+            setIsWebcamRunning(true);
+            setStatusMessage("Deteksi gestur aktif.");
+            predictWebcam(); // Mulai loop deteksi
+          };
+        }
+      } catch (err) {
+        console.error("Gagal memulai stream kamera:", err);
+        setStatusMessage("Gagal memulai kamera.");
+        setHasError(true);
+      }
+    };
+
+    startWebcam();
+
+    // Fungsi cleanup untuk mematikan kamera saat komponen dilepas
+    return () => {
+      if (requestRef.current) {
+        cancelAnimationFrame(requestRef.current);
+      }
+      stream?.getTracks().forEach(track => track.stop());
+    };
+  }, [selectedDeviceId, handLandmarker]);
 
   const sendCommand = async (command: object) => {
     try {
@@ -104,12 +151,11 @@ const WebcamPanel = () => {
     const canvas = canvasRef.current;
     const canvasCtx = canvas.getContext("2d");
 
-    if (canvasCtx) {
+    if (canvasCtx && video.readyState >= 2) {
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
 
-      const startTimeMs = performance.now();
-      const results = handLandmarker.detectForVideo(video, startTimeMs);
+      const results = handLandmarker.detectForVideo(video, performance.now());
       
       canvasCtx.save();
       canvasCtx.clearRect(0, 0, canvas.width, canvas.height);
@@ -159,38 +205,9 @@ const WebcamPanel = () => {
           lastSentGestureRef.current = lastGestureRef.current;
         }
       }
-
       canvasCtx.restore();
     }
-
-    if (isWebcamRunning) {
-      requestRef.current = requestAnimationFrame(predictWebcam);
-    }
-  };
-
-  const handleToggleWebcam = async () => {
-    if (isWebcamRunning) {
-      setIsWebcamRunning(false);
-      if (requestRef.current) cancelAnimationFrame(requestRef.current);
-      if (videoRef.current && videoRef.current.srcObject) {
-        (videoRef.current.srcObject as MediaStream).getTracks().forEach(track => track.stop());
-      }
-    } else {
-      if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia && selectedDeviceId) {
-        try {
-          const stream = await navigator.mediaDevices.getUserMedia({ video: { deviceId: { exact: selectedDeviceId } } });
-          if (videoRef.current) {
-            videoRef.current.srcObject = stream;
-            videoRef.current.addEventListener("loadeddata", () => {
-              setIsWebcamRunning(true);
-              requestRef.current = requestAnimationFrame(predictWebcam);
-            });
-          }
-        } catch (err) {
-          console.error("Error accessing webcam:", err);
-        }
-      }
-    }
+    requestRef.current = requestAnimationFrame(predictWebcam);
   };
 
   return (
@@ -217,6 +234,11 @@ const WebcamPanel = () => {
           )}
         </div>
         
+        <div className={`flex items-center justify-center p-3 rounded-md text-sm font-medium ${hasError ? 'bg-red-900/50 text-red-300' : 'bg-slate-700/50 text-slate-300'}`}>
+          {isWebcamRunning ? <Video className="w-5 h-5 mr-2 text-green-400" /> : (hasError ? <VideoOff className="w-5 h-5 mr-2" /> : <Loader2 className="w-5 h-5 mr-2 animate-spin" />)}
+          {statusMessage}
+        </div>
+
         <Alert className="bg-slate-700/50 border-slate-600">
           <Info className="h-4 w-4 text-sky-400" />
           <AlertTitle className="text-sky-300">Cara Penggunaan</AlertTitle>
@@ -232,26 +254,6 @@ const WebcamPanel = () => {
             </ul>
           </AlertDescription>
         </Alert>
-
-        <div className="space-y-2">
-          <Label htmlFor="camera-select">Pilih Kamera</Label>
-          <Select value={selectedDeviceId} onValueChange={setSelectedDeviceId} disabled={isWebcamRunning || videoDevices.length === 0}>
-            <SelectTrigger id="camera-select" className="w-full bg-slate-700 border-slate-600">
-              <SelectValue placeholder="Pilih sumber video..." />
-            </SelectTrigger>
-            <SelectContent className="bg-slate-800 text-white border-slate-600">
-              {videoDevices.map((device) => (
-                <SelectItem key={device.deviceId} value={device.deviceId}>
-                  {device.label || `Kamera ${videoDevices.indexOf(device) + 1}`}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-        <Button onClick={handleToggleWebcam} disabled={!handLandmarker || !selectedDeviceId} className="w-full">
-          {isWebcamRunning ? <Square className="w-4 h-4 mr-2" /> : <Play className="w-4 h-4 mr-2" />}
-          {isWebcamRunning ? "Hentikan Deteksi" : (handLandmarker ? "Mulai Deteksi Gestur" : "Memuat Model...")}
-        </Button>
       </CardContent>
     </Card>
   );
