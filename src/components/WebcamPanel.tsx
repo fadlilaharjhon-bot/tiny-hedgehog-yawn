@@ -211,7 +211,7 @@ const WebcamPanel = () => {
             </div>
           </div>
           {sentStatus && (
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-green-500/80 text-white text-2xl font-bold px-6 py-3 rounded-lg">
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-12 bg-green-500/80 text-white text-2xl font-bold px-6 py-3 rounded-lg">
               SENT!
             </div>
           )}
