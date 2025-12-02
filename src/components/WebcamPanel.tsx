@@ -104,7 +104,7 @@ const WebcamPanel = ({ onSetDelayTimer }: WebcamPanelProps) => {
     let lampText = "N/A";
     let delayText = "N/A";
 
-    // 1. Pilih Lampu (Tangan Kiri)
+    // 1. Pilih Lampu (Tangan Kanan Fisik)
     if (lampFingers === 1) {
       lamp = "kamar1";
       lampText = "Kamar 1";
@@ -113,7 +113,7 @@ const WebcamPanel = ({ onSetDelayTimer }: WebcamPanelProps) => {
       lampText = "Kamar 2";
     }
 
-    // 2. Pilih Durasi (Tangan Kanan)
+    // 2. Pilih Durasi (Tangan Kiri Fisik)
     if (delayFingers === 0) {
       delayMinutes = 5;
       delayText = "5 Menit";
@@ -131,8 +131,8 @@ const WebcamPanel = ({ onSetDelayTimer }: WebcamPanelProps) => {
     return { lamp, delayMinutes, lampText, delayText };
   };
 
-  const processGesture = (leftFingers: number, rightFingers: number) => {
-    const { lamp, delayMinutes, lampText, delayText } = getCommandDetails(leftFingers, rightFingers);
+  const processGesture = (lampFingers: number, delayFingers: number) => {
+    const { lamp, delayMinutes, lampText, delayText } = getCommandDetails(lampFingers, delayFingers);
 
     if (lamp && delayMinutes > 0) {
       onSetDelayTimer(lamp, delayMinutes);
@@ -159,24 +159,22 @@ const WebcamPanel = ({ onSetDelayTimer }: WebcamPanelProps) => {
       canvasCtx.save();
       canvasCtx.clearRect(0, 0, canvas.width, canvas.height);
 
-      let leftFingers: number | null = null;
-      let rightFingers: number | null = null;
+      let lampFingers: number | null = null; // Tangan Kanan Fisik (MP Left)
+      let delayFingers: number | null = null; // Tangan Kiri Fisik (MP Right)
 
       if (results.landmarks && results.landmarks.length > 0) {
         for (let i = 0; i < results.landmarks.length; i++) {
           const landmarks = results.landmarks[i];
-          // FIX: Access the first element of the handedness array
           const handedness = results.handedness[i][0].categoryName as Handedness;
           const fingerCount = countFingers(landmarks, handedness);
           
-          // MediaPipe melaporkan tangan dari sudut pandang kamera (cermin)
-          // Tangan Kiri Anda (di layar) adalah Right Handedness
-          // Tangan Kanan Anda (di layar) adalah Left Handedness
-          // Kita asumsikan user menggunakan tangan kiri untuk Lampu dan tangan kanan untuk Durasi
-          if (handedness === 'Left') { // Tangan Kanan user (untuk Durasi)
-            rightFingers = fingerCount;
-          } else if (handedness === 'Right') { // Tangan Kiri user (untuk Lampu)
-            leftFingers = fingerCount;
+          // Logika SWAP:
+          // Tangan Kanan Fisik (MP Left) -> Lamp Selection
+          if (handedness === 'Left') { 
+            lampFingers = fingerCount;
+          // Tangan Kiri Fisik (MP Right) -> Duration Selection
+          } else if (handedness === 'Right') { 
+            delayFingers = fingerCount;
           }
           
           const drawingUtils = new DrawingUtils(canvasCtx);
@@ -185,8 +183,11 @@ const WebcamPanel = ({ onSetDelayTimer }: WebcamPanelProps) => {
         }
       }
 
-      const newGesture = { left: leftFingers, right: rightFingers };
-      const isGestureValid = leftFingers !== null && rightFingers !== null;
+      // FIX: Menggunakan 'left' dan 'right' untuk mencocokkan tipe currentGesture
+      // MP Left (lampFingers) adalah tangan kanan fisik user.
+      // MP Right (delayFingers) adalah tangan kiri fisik user.
+      const newGesture = { left: lampFingers, right: delayFingers };
+      const isGestureValid = lampFingers !== null && delayFingers !== null;
 
       if (JSON.stringify(newGesture) !== JSON.stringify(currentGesture.current)) {
         currentGesture.current = newGesture;
@@ -198,16 +199,16 @@ const WebcamPanel = ({ onSetDelayTimer }: WebcamPanelProps) => {
         // Biarkan pesan sukses tampil
       } else if (isGestureValid) {
         const elapsedTime = now - gestureStartTime.current;
-        const { lampText, delayText } = getCommandDetails(leftFingers!, rightFingers!);
+        const { lampText, delayText } = getCommandDetails(lampFingers!, delayFingers!);
 
         if (elapsedTime >= VALIDATION_TIME_MS) {
-          processGesture(leftFingers!, rightFingers!);
+          processGesture(lampFingers!, delayFingers!);
         } else {
           const progress = Math.min(Math.round((elapsedTime / VALIDATION_TIME_MS) * 100), 100);
           if (lampText !== "N/A" && delayText !== "N/A") {
             setGestureOutput(`Tahan: ${lampText} + ${delayText} (${progress}%)`);
           } else {
-            setGestureOutput(`Gestur tidak lengkap. Tangan Kiri: ${leftFingers}, Tangan Kanan: ${rightFingers}`);
+            setGestureOutput(`Gestur tidak lengkap. Tangan Lampu: ${lampFingers}, Tangan Durasi: ${delayFingers}`);
           }
         }
       } else {
@@ -243,14 +244,14 @@ const WebcamPanel = ({ onSetDelayTimer }: WebcamPanelProps) => {
             <p className="font-bold">Tahan kedua gestur ini secara bersamaan selama 2 detik:</p>
             <div className="grid grid-cols-2 gap-4 mt-2">
               <div>
-                <p className="font-bold text-sky-300">TANGAN KIRI (Pilih Lampu)</p>
+                <p className="font-bold text-sky-300">TANGAN KANAN (Pilih Lampu)</p>
                 <ul className="list-disc list-inside pl-2 text-sm">
                   <li><span className="font-mono">1 Jari:</span> Kamar 1</li>
                   <li><span className="font-mono">2 Jari:</span> Kamar 2</li>
                 </ul>
               </div>
               <div>
-                <p className="font-bold text-green-300">TANGAN KANAN (Pilih Durasi)</p>
+                <p className="font-bold text-green-300">TANGAN KIRI (Pilih Durasi)</p>
                 <ul className="list-disc list-inside pl-2 text-sm">
                   <li><span className="font-mono">0 Jari (Mengepal):</span> 5 Menit</li>
                   <li><span className="font-mono">1 Jari:</span> 10 Menit</li>
