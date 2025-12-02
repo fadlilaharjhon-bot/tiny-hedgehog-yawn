@@ -27,20 +27,18 @@ const WebcamPanel = () => {
   const lastSentGestureRef = useRef<number>(-1);
   const validationTime = 1.0; // 1 second
 
-  // Inisialisasi Model MediaPipe
+  // Inisialisasi Model MediaPipe dari file lokal
   useEffect(() => {
     const createHandLandmarker = async () => {
-      const vision = await FilesetResolver.forVisionTasks(
-        "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.3/wasm"
-      );
+      const vision = await FilesetResolver.forVisionTasks("/mediapipe");
       const landmarker = await HandLandmarker.createFromOptions(vision, {
         baseOptions: {
-          modelAssetPath: `https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task`,
+          modelAssetPath: `/mediapipe/hand_landmarker.task`,
           delegate: "GPU",
         },
         runningMode: "VIDEO",
         numHands: 1,
-        minHandDetectionConfidence: 0.3, // Menurunkan ambang batas agar lebih sensitif
+        minHandDetectionConfidence: 0.3,
         minTrackingConfidence: 0.3,
       });
       setHandLandmarker(landmarker);
