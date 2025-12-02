@@ -4,7 +4,8 @@ import HouseStatus from "@/components/HouseStatus";
 import ControlPanel from "@/components/ControlPanel";
 import IntensityChart from "@/components/IntensityChart";
 import WelcomeHeader from "@/components/WelcomeHeader";
-import GestureControlPanel from "@/components/GestureControlPanel"; // Impor komponen baru
+import GestureControlPanel from "@/components/GestureControlPanel";
+import WebcamPanel from "@/components/WebcamPanel"; // Impor komponen baru
 import { useMqtt } from "@/components/MqttProvider";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -143,7 +144,12 @@ const Dashboard = () => {
             <IntensityChart data={chartData} />
           </div>
 
-          {/* Komponen baru untuk sistem Lampu Ruangan */}
+          {/* Panel Webcam Baru */}
+          <div className="lg:col-span-3">
+            <WebcamPanel />
+          </div>
+
+          {/* Komponen untuk sistem Lampu Ruangan */}
           <GestureControlPanel 
             lampStatus={roomLampStatus}
             onToggle={handleToggleRoomLamp}
