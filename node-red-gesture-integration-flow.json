@@ -1,0 +1,86 @@
+[
+    {
+        "id": "a1b2c3d4e5f6g7h8",
+        "type": "tab",
+        "label": "Integrasi Kontrol Gestur Python",
+        "disabled": false,
+        "info": "Flow ini menerima perintah dari skrip Python lokal (OpenCV) melalui HTTP dan meneruskannya ke sistem lampu ruangan via MQTT."
+    },
+    {
+        "id": "http-in-gesture",
+        "type": "http in",
+        "z": "a1b2c3d4e5f6g7h8",
+        "name": "HTTP In: /gesture-command",
+        "url": "/gesture-command",
+        "method": "post",
+        "upload": false,
+        "swaggerDoc": "",
+        "x": 220,
+        "y": 200,
+        "wires": [
+            [
+                "format-command-function",
+                "http-response"
+            ]
+        ]
+    },
+    {
+        "id": "http-response",
+        "type": "http response",
+        "z": "a1b2c3d4e5f6g7h8",
+        "name": "HTTP 200 OK",
+        "statusCode": "200",
+        "headers": {
+            "Access-Control-Allow-Origin": "*"
+        },
+        "x": 450,
+        "y": 260,
+        "wires": []
+    },
+    {
+        "id": "format-command-function",
+        "type": "function",
+        "z": "a1b2c3d4e5f6g7h8",
+        "name": "Format Gesture to MQTT Command",
+        "func": "// Pesan masuk dari Python: { \"command\": \"toggle_lamp1\" }\n// Pesan keluar untuk MQTT: { \"toggle_lamp1\": true }\n\nconst gesture = msg.payload.command;\nlet command = {};\n\nif (gesture === 'toggle_lamp1') {\n    command.toggle_lamp1 = true;\n} else if (gesture === 'toggle_lamp2') {\n    command.toggle_lamp2 = true;\n} else if (gesture === 'toggle_lamp3') {\n    command.toggle_lamp3 = true;\n} else if (gesture === 'all_on' || gesture === 'all_off') {\n    command.command = gesture;\n} else {\n    // Perintah tidak valid, hentikan flow\n    node.warn(\"Perintah gestur tidak dikenal: \" + gesture);\n    return null;\n}\n\nmsg.payload = command;\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 510,
+        "y": 200,
+        "wires": [
+            [
+                "mqtt-out-room-command"
+            ]
+        ]
+    },
+    {
+        "id": "mqtt-out-room-command",
+        "type": "mqtt out",
+        "z": "a1b2c3d4e5f6g7h8",
+        "name": "Publish to Room Lights",
+        "topic": "POLINES/LAMPU_RUANG/COMMAND",
+        "qos": "2",
+        "retain": "false",
+        "broker": "90a08a8a9b3870d2",
+        "x": 790,
+        "y": 200,
+        "wires": []
+    },
+    {
+        "id": "90a08a8a9b3870d2",
+        "type": "mqtt-broker",
+        "name": "broker.hivemq.com",
+        "broker": "broker.hivemq.com",
+        "port": "1883",
+        "clientid": "",
+        "autoConnect": true,
+        "usetls": false,
+        "protocolVersion": "4",
+        "keepalive": "60",
+        "cleansession": true,
+        "autoUnsubscribe": true
+    }
+]
