@@ -1,157 +1,196 @@
-// === Pin Definitions ===
-#define LDR_PIN A0
-#define LED_PIN D2
-#define BTN_AUTO_PIN D3    // Pin untuk tombol Mode AUTO
-#define BTN_MANUAL_PIN D4  // Pin untuk tombol Mode MANUAL
-#define BTN_TOGGLE_PIN D5  // Pin untuk tombol Toggle LED Manual
+#include <ArduinoJson.h>
 
-// === LDR Calibration ===
-int adcGelap = 700;  // Nilai ADC saat sangat gelap
-int adcTerang = 15; // Nilai ADC saat sangat terang
+// --- Pinout Konfigurasi ---
+// Lampu Teras (LDR)
+const int LDR_PIN = A0;
+const int RELAY_LDR_PIN = D1; 
 
-// === State Variables ===
-int threshold = 40;      // Ambang batas default (dalam %)
-bool ledState = false;   // Status LED saat ini (ON/OFF)
-bool autoMode = true;    // Mulai dalam mode AUTO
-bool manualLed = false;  // Status LED yang diinginkan saat mode MANUAL
+// Lampu Ruang 1
+const int BUTTON1_PIN = D5;
+const int RELAY1_PIN = D6;
 
-// === Button Debouncing Variables ===
-// Menggunakan array untuk menyimpan state dan waktu debounce untuk setiap tombol
-const int NUM_BUTTONS = 3;
-const int buttonPins[] = {BTN_AUTO_PIN, BTN_MANUAL_PIN, BTN_TOGGLE_PIN};
-int lastButtonState[NUM_BUTTONS] = {HIGH, HIGH, HIGH};
-unsigned long lastDebounceTime[NUM_BUTTONS] = {0, 0, 0};
-unsigned long debounceDelay = 50; // 50 ms
+// Lampu Ruang 2
+const int BUTTON2_PIN = D7;
+const int RELAY2_PIN = D8;
 
-// === Non-blocking Timer for Serial Print ===
-unsigned long previousMillis = 0;
-const long interval = 500; // Interval pengiriman data serial (ms)
+// Lampu Ruang 3
+const int BUTTON3_PIN = D0;
+const int RELAY3_PIN = D2;
+
+// --- Variabel Status ---
+// Status Relay (true = ON, false = OFF)
+bool relayLdrStatus = false;
+bool relay1Status = false;
+bool relay2Status = false;
+bool relay3Status = false;
+
+// Status Tombol (untuk debounce)
+int lastButton1State = HIGH;
+int lastButton2State = HIGH;
+int lastButton3State = HIGH;
+unsigned long lastDebounceTime1 = 0;
+unsigned long lastDebounceTime2 = 0;
+unsigned long lastDebounceTime3 = 0;
+unsigned long debounceDelay = 50;
+
+// Variabel LDR
+int ldrValue = 0;
+int ldrThreshold = 400; // Nilai default (0-1023), akan diupdate dari Node-RED
+enum Mode { AUTO, MANUAL };
+Mode currentMode = AUTO;
+
+// Timer untuk mengirim data ke Serial
+unsigned long lastSendTime = 0;
+const long sendInterval = 1000; // Kirim data setiap 1 detik
 
 void setup() {
   Serial.begin(9600);
-  pinMode(LED_PIN, OUTPUT);
-  digitalWrite(LED_PIN, LOW);
-  
-  // Inisialisasi pin tombol dengan internal pull-up resistor
-  for (int i = 0; i < NUM_BUTTONS; i++) {
-    pinMode(buttonPins[i], INPUT_PULLUP);
-  }
+
+  // Inisialisasi Pin Relay
+  pinMode(RELAY_LDR_PIN, OUTPUT);
+  pinMode(RELAY1_PIN, OUTPUT);
+  pinMode(RELAY2_PIN, OUTPUT);
+  pinMode(RELAY3_PIN, OUTPUT);
+  digitalWrite(RELAY_LDR_PIN, HIGH); // HIGH = Relay OFF
+  digitalWrite(RELAY1_PIN, HIGH);
+  digitalWrite(RELAY2_PIN, HIGH);
+  digitalWrite(RELAY3_PIN, HIGH);
+
+  // Inisialisasi Pin Tombol
+  pinMode(BUTTON1_PIN, INPUT_PULLUP);
+  pinMode(BUTTON2_PIN, INPUT_PULLUP);
+  pinMode(BUTTON3_PIN, INPUT_PULLUP);
 }
 
 void loop() {
-  // --- Handle Button Presses (Debounced) ---
+  unsigned long currentTime = millis();
+
   handleButtons();
-
-  // --- Read LDR and Calculate Intensity ---
-  int ldrValue = analogRead(LDR_PIN);
-  if (ldrValue > adcGelap) ldrValue = adcGelap;
-  if (ldrValue < adcTerang) ldrValue = adcTerang;
-  int intensity = map(ldrValue, adcGelap, adcTerang, 0, 100);
-
-  // --- Apply Logic based on Mode ---
-  if (autoMode) {
-    // Mode AUTO: LED dikontrol oleh LDR dan threshold
-    ledState = (intensity < threshold);
-  } else {
-    // Mode MANUAL: LED dikontrol oleh variabel manualLed
-    ledState = manualLed;
-  }
-
-  // --- Update Physical LED ---
-  digitalWrite(LED_PIN, ledState ? HIGH : LOW);
-
-  // --- Send Data to Node-RED periodically (Non-blocking) ---
-  unsigned long currentMillis = millis();
-  if (currentMillis - previousMillis >= interval) {
-    previousMillis = currentMillis;
-    sendDataToSerial(ldrValue, intensity);
-  }
-
-  // --- Handle Incoming Serial Commands ---
+  handleLDR();
   handleSerialCommands();
+
+  if (currentTime - lastSendTime >= sendInterval) {
+    sendFullStatus();
+    lastSendTime = currentTime;
+  }
 }
 
 void handleButtons() {
-  for (int i = 0; i < NUM_BUTTONS; i++) {
-    int reading = digitalRead(buttonPins[i]);
-
-    if (reading != lastButtonState[i]) {
-      lastDebounceTime[i] = millis();
-    }
-
-    if ((millis() - lastDebounceTime[i]) > debounceDelay) {
-      // Jika tombol benar-benar ditekan (state berubah dari HIGH ke LOW)
-      if (reading == LOW && lastButtonState[i] == HIGH) {
-        
-        // Tombol 1: AUTO
-        if (buttonPins[i] == BTN_AUTO_PIN) {
-          autoMode = true;
-        }
-        
-        // Tombol 2: MANUAL
-        else if (buttonPins[i] == BTN_MANUAL_PIN) {
-          autoMode = false;
-          // Saat beralih ke MANUAL, sinkronkan manualLed dengan state LED saat ini
-          manualLed = ledState; 
-        }
-        
-        // Tombol 3: TOGGLE LED (Hanya berfungsi di mode MANUAL)
-        else if (buttonPins[i] == BTN_TOGGLE_PIN) {
-          if (!autoMode) {
-            manualLed = !manualLed;
-          }
-        }
-      }
-    }
-    
-    lastButtonState[i] = reading;
+  // Tombol 1
+  int reading1 = digitalRead(BUTTON1_PIN);
+  if (reading1 != lastButton1State) {
+    lastDebounceTime1 = millis();
   }
+  if ((millis() - lastDebounceTime1) > debounceDelay) {
+    if (reading1 == LOW) { // Tombol ditekan
+      relay1Status = !relay1Status;
+      updateRelay(RELAY1_PIN, relay1Status);
+      sendFullStatus(); // Kirim status segera setelah perubahan
+    }
+  }
+  lastButton1State = reading1;
+
+  // Tombol 2
+  int reading2 = digitalRead(BUTTON2_PIN);
+  if (reading2 != lastButton2State) {
+    lastDebounceTime2 = millis();
+  }
+  if ((millis() - lastDebounceTime2) > debounceDelay) {
+    if (reading2 == LOW) {
+      relay2Status = !relay2Status;
+      updateRelay(RELAY2_PIN, relay2Status);
+      sendFullStatus();
+    }
+  }
+  lastButton2State = reading2;
+
+  // Tombol 3
+  int reading3 = digitalRead(BUTTON3_PIN);
+  if (reading3 != lastButton3State) {
+    lastDebounceTime3 = millis();
+  }
+  if ((millis() - lastDebounceTime3) > debounceDelay) {
+    if (reading3 == LOW) {
+      relay3Status = !relay3Status;
+      updateRelay(RELAY3_PIN, relay3Status);
+      sendFullStatus();
+    }
+  }
+  lastButton3State = reading3;
 }
 
-void sendDataToSerial(int ldrValue, int intensity) {
-  Serial.print("{\"intensity\":");
-  Serial.print(intensity);
-  Serial.print(",\"led\":\"");
-  Serial.print(ledState ? "ON" : "OFF");
-  Serial.print("\",\"mode\":\"");
-  Serial.print(autoMode ? "auto" : "manual");
-  Serial.print("\",\"threshold\":");
-  Serial.print(threshold);
-  Serial.println("}");
+void handleLDR() {
+  ldrValue = analogRead(LDR_PIN);
+  if (currentMode == AUTO) {
+    if (ldrValue < ldrThreshold) {
+      relayLdrStatus = true; // Gelap -> Lampu ON
+    } else {
+      relayLdrStatus = false; // Terang -> Lampu OFF
+    }
+    updateRelay(RELAY_LDR_PIN, relayLdrStatus);
+  }
 }
 
 void handleSerialCommands() {
   if (Serial.available() > 0) {
-    String cmd = Serial.readStringUntil('\n');
-    cmd.trim();
+    String input = Serial.readStringUntil('\n');
+    StaticJsonDocument<200> doc;
+    DeserializationError error = deserializeJson(doc, input);
 
-    // Format JSON: {"mode":"auto"} / {"mode":"manual"} / {"led":"toggle"} / {"threshold":50}
-    if (cmd.startsWith("{")) {
-      if (cmd.indexOf("\"mode\":\"auto\"") > 0) {
-        autoMode = true;
-      }
-      else if (cmd.indexOf("\"mode\":\"manual\"") > 0) {
-        autoMode = false;
-      }
-      else if (cmd.indexOf("\"led\":\"toggle\"") > 0) {
-        if (!autoMode) { // Hanya bekerja di mode MANUAL
-          manualLed = !manualLed;
-        }
-      }
-      else if (cmd.indexOf("\"threshold\":") > 0) {
-        // Parsing nilai threshold dari JSON (lebih robust)
-        int start = cmd.indexOf(":") + 1;
-        int end = cmd.indexOf("}", start);
-        if (end > start) {
-          String valStr = cmd.substring(start, end);
-          int newTh = valStr.toInt();
-          // Konversi nilai 0-1023 dari web app ke 0-100
-          int newThPercent = map(newTh, 0, 1023, 0, 100);
-          if (newThPercent >= 0 && newThPercent <= 100) {
-            threshold = newThPercent;
-          }
-        }
-      }
+    if (error) return;
+
+    // Kontrol Lampu Teras (LDR)
+    if (doc.containsKey("mode")) {
+      String modeStr = doc["mode"];
+      if (modeStr == "auto") currentMode = AUTO;
+      if (modeStr == "manual") currentMode = MANUAL;
     }
+    if (doc.containsKey("ldr_led_toggle")) {
+        if (currentMode == MANUAL) {
+            relayLdrStatus = !relayLdrStatus;
+            updateRelay(RELAY_LDR_PIN, relayLdrStatus);
+        }
+    }
+    if (doc.containsKey("threshold")) {
+      ldrThreshold = doc["threshold"];
+    }
+
+    // Kontrol Lampu Ruang 1, 2, 3
+    if (doc.containsKey("toggle_lamp1")) {
+      relay1Status = !relay1Status;
+      updateRelay(RELAY1_PIN, relay1Status);
+    }
+    if (doc.containsKey("toggle_lamp2")) {
+      relay2Status = !relay2Status;
+      updateRelay(RELAY2_PIN, relay2Status);
+    }
+    if (doc.containsKey("toggle_lamp3")) {
+      relay3Status = !relay3Status;
+      updateRelay(RELAY3_PIN, relay3Status);
+    }
+    
+    sendFullStatus(); // Kirim status terbaru setelah menerima perintah
   }
+}
+
+void updateRelay(int pin, bool status) {
+  digitalWrite(pin, status ? LOW : HIGH); // LOW = Relay ON
+}
+
+void sendFullStatus() {
+  StaticJsonDocument<256> doc;
+  
+  // Status LDR
+  doc["intensity"] = map(ldrValue, 0, 1023, 100, 0); // Balik nilai agar 100% = gelap
+  doc["ldr_led"] = relayLdrStatus ? "ON" : "OFF";
+  doc["mode"] = (currentMode == AUTO) ? "auto" : "manual";
+  doc["threshold_val"] = ldrThreshold;
+
+  // Status Lampu Ruang
+  doc["lamp1"] = relay1Status ? "ON" : "OFF";
+  doc["lamp2"] = relay2Status ? "ON" : "OFF";
+  doc["lamp3"] = relay3Status ? "ON" : "OFF";
+
+  serializeJson(doc, Serial);
+  Serial.println();
 }

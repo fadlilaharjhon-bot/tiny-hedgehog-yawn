@@ -3,7 +3,8 @@ import LightIntensityGauge from "@/components/LightIntensityGauge";
 import HouseStatus from "@/components/HouseStatus";
 import ControlPanel from "@/components/ControlPanel";
 import IntensityChart from "@/components/IntensityChart";
-import WelcomeHeader from "@/components/WelcomeHeader"; // Impor komponen baru
+import WelcomeHeader from "@/components/WelcomeHeader";
+import GestureControlPanel from "@/components/GestureControlPanel"; // Impor komponen baru
 import { useMqtt } from "@/components/MqttProvider";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -11,20 +12,32 @@ import { LogOut } from "lucide-react";
 
 const MAX_CHART_POINTS = 30;
 
-const TOPIC_STATUS = "POLINES/FADLI/IL";
-const TOPIC_COMMAND = "POLINES/PADLI/IL";
-const TOPIC_THRESHOLD_SET = "POLINES/BADLI/IL";
-const TOPIC_THRESHOLD_ECHO = "POLINES/BADLI/IL/ECHO";
+// Topik untuk Lampu Teras (LDR)
+const TOPIC_LDR_STATUS = "POLINES/FADLI/IL";
+const TOPIC_LDR_COMMAND = "POLINES/PADLI/IL";
+const TOPIC_LDR_THRESHOLD_SET = "POLINES/BADLI/IL";
+
+// Topik untuk Lampu Ruangan (Gestur)
+const TOPIC_ROOM_STATUS = "POLINES/LAMPU_RUANG/STATUS";
+const TOPIC_ROOM_COMMAND = "POLINES/LAMPU_RUANG/COMMAND";
 
 const Dashboard = () => {
   const { client, connectionStatus, publish } = useMqtt();
   const { logout, currentUser } = useAuth();
 
+  // State untuk sistem LDR
   const [lightIntensity, setLightIntensity] = useState(0);
-  const [lampStatus, setLampStatus] = useState(false);
+  const [ldrLampStatus, setLdrLampStatus] = useState(false);
   const [mode, setMode] = useState<"auto" | "manual">("auto");
   const [threshold, setThreshold] = useState(40);
   const [chartData, setChartData] = useState<{ time: string; intensity: number }[]>([]);
+  
+  // State untuk sistem Lampu Ruangan
+  const [roomLampStatus, setRoomLampStatus] = useState({
+    lamp1: false,
+    lamp2: false,
+    lamp3: false,
+  });
 
   const debounceTimer = useRef<NodeJS.Timeout | null>(null);
   const isConnected = connectionStatus === "Connected";
@@ -32,17 +45,19 @@ const Dashboard = () => {
   useEffect(() => {
     if (!client || !isConnected) return;
 
-    client.subscribe(TOPIC_STATUS);
-    client.subscribe(TOPIC_THRESHOLD_ECHO);
+    // Subscribe ke semua topik yang relevan
+    client.subscribe(TOPIC_LDR_STATUS);
+    client.subscribe(TOPIC_ROOM_STATUS);
 
     const messageHandler = (topic: string, payload: Buffer) => {
       try {
         const data = JSON.parse(payload.toString());
 
-        if (topic === TOPIC_STATUS) {
+        if (topic === TOPIC_LDR_STATUS) {
           setLightIntensity(data.intensity ?? 0);
-          setLampStatus(data.led === "ON");
+          setLdrLampStatus(data.led === "ON");
           setMode(data.mode?.toLowerCase() ?? "auto");
+          setThreshold(data.threshold ?? 40);
           
           const now = new Date();
           const newPoint = {
@@ -52,11 +67,12 @@ const Dashboard = () => {
           setChartData((prevData) => [...prevData, newPoint].slice(-MAX_CHART_POINTS));
         }
 
-        if (topic === TOPIC_THRESHOLD_ECHO) {
-          const confirmedThreshold = data.threshold;
-          if (typeof confirmedThreshold === 'number') {
-            setThreshold(confirmedThreshold);
-          }
+        if (topic === TOPIC_ROOM_STATUS) {
+          setRoomLampStatus({
+            lamp1: data.lamp1 ?? false,
+            lamp2: data.lamp2 ?? false,
+            lamp3: data.lamp3 ?? false,
+          });
         }
       } catch (e) {
         console.error(`Gagal mem-parsing pesan dari topik ${topic}:`, e);
@@ -70,29 +86,30 @@ const Dashboard = () => {
     };
   }, [client, isConnected]);
 
+  // Handler untuk sistem LDR
   const handleSetMode = (newMode: "auto" | "manual") => {
-    publish(TOPIC_COMMAND, JSON.stringify({ mode: newMode }));
+    publish(TOPIC_LDR_COMMAND, JSON.stringify({ mode: newMode }));
   };
 
-  const handleToggleLamp = () => {
+  const handleToggleLdrLamp = () => {
     if (mode === 'manual') {
-      publish(TOPIC_COMMAND, JSON.stringify({ led: "toggle" }));
+      publish(TOPIC_LDR_COMMAND, JSON.stringify({ led: "toggle" }));
     }
   };
 
   const handleSetThreshold = (newThreshold: number) => {
     setThreshold(newThreshold);
-
-    if (debounceTimer.current) {
-      clearTimeout(debounceTimer.current);
-    }
-
+    if (debounceTimer.current) clearTimeout(debounceTimer.current);
     debounceTimer.current = setTimeout(() => {
-      if (client && isConnected) {
-        const deviceThreshold = Math.round((newThreshold / 100) * 1023);
-        publish(TOPIC_THRESHOLD_SET, JSON.stringify({ threshold: deviceThreshold }));
-      }
+      const deviceThreshold = Math.round((newThreshold / 100) * 1023);
+      publish(TOPIC_LDR_THRESHOLD_SET, JSON.stringify({ threshold: deviceThreshold }));
     }, 400);
+  };
+
+  // Handler untuk sistem Lampu Ruangan
+  const handleToggleRoomLamp = (lamp: 'lamp1' | 'lamp2' | 'lamp3') => {
+    const command = { [`toggle_${lamp}`]: true };
+    publish(TOPIC_ROOM_COMMAND, JSON.stringify(command));
   };
 
   return (
@@ -110,20 +127,28 @@ const Dashboard = () => {
         
         {currentUser && <WelcomeHeader username={currentUser.username} />}
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Komponen untuk sistem LDR */}
           <LightIntensityGauge intensity={lightIntensity} />
-          <HouseStatus lights={{ terrace: lampStatus }} />
+          <HouseStatus lights={{ terrace: ldrLampStatus }} />
           <ControlPanel
             mode={mode}
             setMode={handleSetMode}
-            toggleLamp={handleToggleLamp}
+            toggleLamp={handleToggleLdrLamp}
             threshold={threshold}
             setThreshold={handleSetThreshold}
             disabled={!isConnected}
           />
-          <div className="md:col-span-2 lg:col-span-3">
+          <div className="lg:col-span-3">
             <IntensityChart data={chartData} />
           </div>
+
+          {/* Komponen baru untuk sistem Lampu Ruangan */}
+          <GestureControlPanel 
+            lampStatus={roomLampStatus}
+            onToggle={handleToggleRoomLamp}
+            disabled={!isConnected}
+          />
         </div>
       </div>
     </div>
