@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef } from "react";
 import LightIntensityGauge from "@/components/LightIntensityGauge";
-import HouseStatus from "@/components/HouseStatus";
+import HouseStatus, { LightStates } from "@/components/HouseStatus";
 import ControlPanel from "@/components/ControlPanel";
 import IntensityChart from "@/components/IntensityChart";
-import WelcomeHeader from "@/components/WelcomeHeader"; // Impor komponen baru
+import WelcomeHeader from "@/components/WelcomeHeader";
 import { useMqtt } from "@/components/MqttProvider";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -11,17 +11,22 @@ import { LogOut } from "lucide-react";
 
 const MAX_CHART_POINTS = 30;
 
-const TOPIC_STATUS = "POLINES/FADLI/IL";
-const TOPIC_COMMAND = "POLINES/PADLI/IL";
-const TOPIC_THRESHOLD_SET = "POLINES/BADLI/IL";
-const TOPIC_THRESHOLD_ECHO = "POLINES/BADLI/IL/ECHO";
+// Topik MQTT
+const TOPIC_STATUS = "POLINES/FADLI/IL/STATUS"; // Status lengkap dari Node-RED
+const TOPIC_COMMAND = "POLINES/FADLI/IL/COMMAND"; // Perintah dari Web ke Node-RED
+const TOPIC_THRESHOLD_SET = "POLINES/FADLI/IL/THRESHOLD"; // Set threshold dari Web
+const TOPIC_THRESHOLD_ECHO = "POLINES/FADLI/IL/THRESHOLD/ECHO"; // Konfirmasi threshold
 
 const Dashboard = () => {
   const { client, connectionStatus, publish } = useMqtt();
   const { logout, currentUser } = useAuth();
 
   const [lightIntensity, setLightIntensity] = useState(0);
-  const [lampStatus, setLampStatus] = useState(false);
+  const [lampStates, setLampStates] = useState<LightStates>({
+    terrace: false,
+    livingRoom: false,
+    bedroom: false,
+  });
   const [mode, setMode] = useState<"auto" | "manual">("auto");
   const [threshold, setThreshold] = useState(40);
   const [chartData, setChartData] = useState<{ time: string; intensity: number }[]>([]);
@@ -41,7 +46,11 @@ const Dashboard = () => {
 
         if (topic === TOPIC_STATUS) {
           setLightIntensity(data.intensity ?? 0);
-          setLampStatus(data.led === "ON");
+          setLampStates({
+            terrace: data.led1 === "ON",
+            livingRoom: data.led2 === "ON",
+            bedroom: data.led3 === "ON",
+          });
           setMode(data.mode?.toLowerCase() ?? "auto");
           
           const now = new Date();
@@ -74,9 +83,9 @@ const Dashboard = () => {
     publish(TOPIC_COMMAND, JSON.stringify({ mode: newMode }));
   };
 
-  const handleToggleLamp = () => {
+  const handleToggleLamp = (lampIndex: number) => {
     if (mode === 'manual') {
-      publish(TOPIC_COMMAND, JSON.stringify({ led: "toggle" }));
+      publish(TOPIC_COMMAND, JSON.stringify({ lamp: lampIndex, action: "toggle" }));
     }
   };
 
@@ -112,11 +121,12 @@ const Dashboard = () => {
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           <LightIntensityGauge intensity={lightIntensity} />
-          <HouseStatus lights={{ terrace: lampStatus }} />
+          <HouseStatus lights={lampStates} />
           <ControlPanel
             mode={mode}
             setMode={handleSetMode}
             toggleLamp={handleToggleLamp}
+            lampStates={lampStates}
             threshold={threshold}
             setThreshold={handleSetThreshold}
             disabled={!isConnected}

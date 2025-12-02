@@ -1,157 +1,125 @@
-// === Pin Definitions ===
-#define LDR_PIN A0
-#define LED_PIN D2
-#define BTN_AUTO_PIN D3    // Pin untuk tombol Mode AUTO
-#define BTN_MANUAL_PIN D4  // Pin untuk tombol Mode MANUAL
-#define BTN_TOGGLE_PIN D5  // Pin untuk tombol Toggle LED Manual
+#include <ArduinoJson.h>
 
-// === LDR Calibration ===
-int adcGelap = 700;  // Nilai ADC saat sangat gelap
-int adcTerang = 15; // Nilai ADC saat sangat terang
+// --- Konfigurasi Pin ---
+const int LDR_PIN = A0;
+const int LED_PIN_1 = D1; // Teras
+const int LED_PIN_2 = D2; // R. Tamu
+const int LED_PIN_3 = D5; // K. Tidur
 
-// === State Variables ===
-int threshold = 40;      // Ambang batas default (dalam %)
-bool ledState = false;   // Status LED saat ini (ON/OFF)
-bool autoMode = true;    // Mulai dalam mode AUTO
-bool manualLed = false;  // Status LED yang diinginkan saat mode MANUAL
+const int BUTTON_MODE_PIN = D6;
+const int BUTTON_LED_1_PIN = D7; // Tombol fisik untuk LED 1
+const int BUTTON_LED_2_PIN = D8; // Tombol fisik untuk LED 2
+const int BUTTON_LED_3_PIN = D3; // Tombol fisik untuk LED 3
 
-// === Button Debouncing Variables ===
-// Menggunakan array untuk menyimpan state dan waktu debounce untuk setiap tombol
-const int NUM_BUTTONS = 3;
-const int buttonPins[] = {BTN_AUTO_PIN, BTN_MANUAL_PIN, BTN_TOGGLE_PIN};
-int lastButtonState[NUM_BUTTONS] = {HIGH, HIGH, HIGH};
-unsigned long lastDebounceTime[NUM_BUTTONS] = {0, 0, 0};
-unsigned long debounceDelay = 50; // 50 ms
+// --- Variabel Global ---
+bool led1State = false;
+bool led2State = false;
+bool led3State = false;
+bool isAutoMode = true;
+int ldrValue = 0;
+int threshold = 400; // Nilai default (sekitar 40% dari 1023)
 
-// === Non-blocking Timer for Serial Print ===
-unsigned long previousMillis = 0;
-const long interval = 500; // Interval pengiriman data serial (ms)
+// --- Variabel untuk Debouncing Tombol ---
+unsigned long lastDebounceTimeMode = 0;
+unsigned long lastDebounceTimeLed1 = 0;
+unsigned long lastDebounceTimeLed2 = 0;
+unsigned long lastDebounceTimeLed3 = 0;
+unsigned long debounceDelay = 50;
 
 void setup() {
   Serial.begin(9600);
-  pinMode(LED_PIN, OUTPUT);
-  digitalWrite(LED_PIN, LOW);
-  
-  // Inisialisasi pin tombol dengan internal pull-up resistor
-  for (int i = 0; i < NUM_BUTTONS; i++) {
-    pinMode(buttonPins[i], INPUT_PULLUP);
-  }
+  pinMode(LED_PIN_1, OUTPUT);
+  pinMode(LED_PIN_2, OUTPUT);
+  pinMode(LED_PIN_3, OUTPUT);
+  pinMode(BUTTON_MODE_PIN, INPUT_PULLUP);
+  pinMode(BUTTON_LED_1_PIN, INPUT_PULLUP);
+  pinMode(BUTTON_LED_2_PIN, INPUT_PULLUP);
+  pinMode(BUTTON_LED_3_PIN, INPUT_PULLUP);
+
+  digitalWrite(LED_PIN_1, LOW);
+  digitalWrite(LED_PIN_2, LOW);
+  digitalWrite(LED_PIN_3, LOW);
 }
 
 void loop() {
-  // --- Handle Button Presses (Debounced) ---
   handleButtons();
-
-  // --- Read LDR and Calculate Intensity ---
-  int ldrValue = analogRead(LDR_PIN);
-  if (ldrValue > adcGelap) ldrValue = adcGelap;
-  if (ldrValue < adcTerang) ldrValue = adcTerang;
-  int intensity = map(ldrValue, adcGelap, adcTerang, 0, 100);
-
-  // --- Apply Logic based on Mode ---
-  if (autoMode) {
-    // Mode AUTO: LED dikontrol oleh LDR dan threshold
-    ledState = (intensity < threshold);
-  } else {
-    // Mode MANUAL: LED dikontrol oleh variabel manualLed
-    ledState = manualLed;
-  }
-
-  // --- Update Physical LED ---
-  digitalWrite(LED_PIN, ledState ? HIGH : LOW);
-
-  // --- Send Data to Node-RED periodically (Non-blocking) ---
-  unsigned long currentMillis = millis();
-  if (currentMillis - previousMillis >= interval) {
-    previousMillis = currentMillis;
-    sendDataToSerial(ldrValue, intensity);
-  }
-
-  // --- Handle Incoming Serial Commands ---
   handleSerialCommands();
+  
+  ldrValue = analogRead(LDR_PIN);
+
+  if (isAutoMode) {
+    // Hanya LED 1 (Teras) yang otomatis
+    if (ldrValue > threshold) {
+      led1State = false;
+    } else {
+      led1State = true;
+    }
+  }
+  
+  updateLEDs();
+  sendStatus();
+  delay(100); // Jeda singkat untuk stabilitas
 }
 
 void handleButtons() {
-  for (int i = 0; i < NUM_BUTTONS; i++) {
-    int reading = digitalRead(buttonPins[i]);
-
-    if (reading != lastButtonState[i]) {
-      lastDebounceTime[i] = millis();
-    }
-
-    if ((millis() - lastDebounceTime[i]) > debounceDelay) {
-      // Jika tombol benar-benar ditekan (state berubah dari HIGH ke LOW)
-      if (reading == LOW && lastButtonState[i] == HIGH) {
-        
-        // Tombol 1: AUTO
-        if (buttonPins[i] == BTN_AUTO_PIN) {
-          autoMode = true;
-        }
-        
-        // Tombol 2: MANUAL
-        else if (buttonPins[i] == BTN_MANUAL_PIN) {
-          autoMode = false;
-          // Saat beralih ke MANUAL, sinkronkan manualLed dengan state LED saat ini
-          manualLed = ledState; 
-        }
-        
-        // Tombol 3: TOGGLE LED (Hanya berfungsi di mode MANUAL)
-        else if (buttonPins[i] == BTN_TOGGLE_PIN) {
-          if (!autoMode) {
-            manualLed = !manualLed;
-          }
-        }
-      }
-    }
-    
-    lastButtonState[i] = reading;
+  if ((millis() - lastDebounceTimeMode) > debounceDelay && digitalRead(BUTTON_MODE_PIN) == LOW) {
+    isAutoMode = !isAutoMode;
+    lastDebounceTimeMode = millis();
   }
-}
-
-void sendDataToSerial(int ldrValue, int intensity) {
-  Serial.print("{\"intensity\":");
-  Serial.print(intensity);
-  Serial.print(",\"led\":\"");
-  Serial.print(ledState ? "ON" : "OFF");
-  Serial.print("\",\"mode\":\"");
-  Serial.print(autoMode ? "auto" : "manual");
-  Serial.print("\",\"threshold\":");
-  Serial.print(threshold);
-  Serial.println("}");
+  if ((millis() - lastDebounceTimeLed1) > debounceDelay && digitalRead(BUTTON_LED_1_PIN) == LOW) {
+    if (!isAutoMode) led1State = !led1State;
+    lastDebounceTimeLed1 = millis();
+  }
+  if ((millis() - lastDebounceTimeLed2) > debounceDelay && digitalRead(BUTTON_LED_2_PIN) == LOW) {
+    if (!isAutoMode) led2State = !led2State;
+    lastDebounceTimeLed2 = millis();
+  }
+  if ((millis() - lastDebounceTimeLed3) > debounceDelay && digitalRead(BUTTON_LED_3_PIN) == LOW) {
+    if (!isAutoMode) led3State = !led3State;
+    lastDebounceTimeLed3 = millis();
+  }
 }
 
 void handleSerialCommands() {
   if (Serial.available() > 0) {
-    String cmd = Serial.readStringUntil('\n');
-    cmd.trim();
+    String input = Serial.readStringUntil('\n');
+    StaticJsonDocument<200> doc;
+    DeserializationError error = deserializeJson(doc, input);
 
-    // Format JSON: {"mode":"auto"} / {"mode":"manual"} / {"led":"toggle"} / {"threshold":50}
-    if (cmd.startsWith("{")) {
-      if (cmd.indexOf("\"mode\":\"auto\"") > 0) {
-        autoMode = true;
-      }
-      else if (cmd.indexOf("\"mode\":\"manual\"") > 0) {
-        autoMode = false;
-      }
-      else if (cmd.indexOf("\"led\":\"toggle\"") > 0) {
-        if (!autoMode) { // Hanya bekerja di mode MANUAL
-          manualLed = !manualLed;
-        }
-      }
-      else if (cmd.indexOf("\"threshold\":") > 0) {
-        // Parsing nilai threshold dari JSON (lebih robust)
-        int start = cmd.indexOf(":") + 1;
-        int end = cmd.indexOf("}", start);
-        if (end > start) {
-          String valStr = cmd.substring(start, end);
-          int newTh = valStr.toInt();
-          // Konversi nilai 0-1023 dari web app ke 0-100
-          int newThPercent = map(newTh, 0, 1023, 0, 100);
-          if (newThPercent >= 0 && newThPercent <= 100) {
-            threshold = newThPercent;
-          }
-        }
+    if (error) return;
+
+    if (doc.containsKey("mode")) {
+      isAutoMode = (doc["mode"] == "auto");
+    }
+    if (doc.containsKey("threshold")) {
+      threshold = doc["threshold"];
+    }
+    if (doc.containsKey("lamp") && doc.containsKey("action")) {
+      if (!isAutoMode && doc["action"] == "toggle") {
+        int lampIndex = doc["lamp"];
+        if (lampIndex == 1) led1State = !led1State;
+        if (lampIndex == 2) led2State = !led2State;
+        if (lampIndex == 3) led3State = !led3State;
       }
     }
   }
+}
+
+void updateLEDs() {
+  digitalWrite(LED_PIN_1, led1State ? HIGH : LOW);
+  digitalWrite(LED_PIN_2, led2State ? HIGH : LOW);
+  digitalWrite(LED_PIN_3, led3State ? HIGH : LOW);
+}
+
+void sendStatus() {
+  StaticJsonDocument<256> doc;
+  doc["intensity"] = map(ldrValue, 0, 1023, 100, 0);
+  doc["led1"] = led1State ? "ON" : "OFF";
+  doc["led2"] = led2State ? "ON" : "OFF";
+  doc["led3"] = led3State ? "ON" : "OFF";
+  doc["mode"] = isAutoMode ? "auto" : "manual";
+  doc["threshold"] = map(threshold, 0, 1023, 0, 100);
+
+  serializeJson(doc, Serial);
+  Serial.println();
 }
