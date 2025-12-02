@@ -31,12 +31,20 @@ const WebcamPanel = () => {
   useEffect(() => {
     const createHandLandmarker = async () => {
       try {
-        const vision = await FilesetResolver.forVisionTasks("/mediapipe");
+        // --- PERUBAHAN KUNCI: MEMUAT DARI CDN ---
+        const vision = await FilesetResolver.forVisionTasks(
+          "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.9/wasm"
+        );
         const landmarker = await HandLandmarker.createFromOptions(vision, {
-          baseOptions: { modelAssetPath: `/mediapipe/hand_landmarker.task`, delegate: "GPU" },
+          baseOptions: {
+            modelAssetPath: `https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task`,
+            delegate: "CPU", // Menggunakan CPU untuk kompatibilitas maksimal
+          },
           runningMode: "VIDEO",
           numHands: 1,
         });
+        // --- AKHIR PERUBAHAN ---
+
         handLandmarker.current = landmarker;
         setStatusMessage("Model siap. Menunggu izin kamera...");
         startWebcam();
