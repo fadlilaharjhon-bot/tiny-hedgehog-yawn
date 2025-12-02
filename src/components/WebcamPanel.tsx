@@ -118,8 +118,17 @@ const WebcamPanel = () => {
         const handedness = results.handedness[0][0].categoryName;
         const drawingUtils = new DrawingUtils(canvasCtx);
         
-        drawingUtils.drawLandmarks(handLandmarks, { color: "#FFC107", lineWidth: 2 });
-        drawingUtils.drawConnectors(handLandmarks, HandLandmarker.HAND_CONNECTIONS, { color: "#4CAF50", lineWidth: 4 });
+        // --- VISUALISASI MESH DITINGKATKAN ---
+        // Menggambar garis konektor
+        drawingUtils.drawConnectors(handLandmarks, HandLandmarker.HAND_CONNECTIONS, {
+          color: "#FFFFFF", // Garis putih
+          lineWidth: 5,
+        });
+        // Menggambar titik landmark
+        drawingUtils.drawLandmarks(handLandmarks, {
+          color: "#38bdf8", // Titik biru langit
+          radius: 8,
+        });
 
         const fingerTips = [8, 12, 16, 20]; // Index, Middle, Ring, Pinky
         const thumbTip = 4;
