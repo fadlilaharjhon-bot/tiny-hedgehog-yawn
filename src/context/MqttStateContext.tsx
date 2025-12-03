@@ -128,27 +128,31 @@ export const MqttStateProvider = ({ children }: { children: ReactNode }) => {
   }, [addHistory]);
 
   // --- AUTO MODE LOGIC (Client-side fallback/simulation) ---
-  // NOTE: This logic was present in the original file and is kept for continuity, 
-  // although the ESP should handle the core auto logic.
   useEffect(() => {
     const timerInterval = setInterval(() => {
       if (terraceMode !== "auto" || !isConnected) return;
 
       const now = new Date();
       const hours = now.getHours();
-      const minutes = now.getMinutes();
       
-      const isNightTime = (hours === 17 && minutes >= 30) || hours >= 18 || hours < 6;
       const isLdrDark = lightIntensity < terraceThreshold;
       
-      const shouldBeOn = isNightTime || isLdrDark;
+      // 1. Timer Logic: ON 18:00 (6 PM) - 06:00 (6 AM)
+      const isTimerOn = hours >= 18 || hours < 6;
+      
+      // 2. LDR Override Window: 16:00 (4 PM) - 18:00 (6 PM)
+      const isLdrOverrideWindow = hours >= 16 && hours < 18;
+      
+      // Should be ON if Timer is ON OR if it's the LDR override window AND it's dark
+      const shouldBeOn = isTimerOn || (isLdrOverrideWindow && isLdrDark);
 
       // Only publish if the state needs to change
       if (lightStatus.teras !== shouldBeOn) {
-        // We rely on the ESP to confirm the state change, but we publish the command
         const command = shouldBeOn ? "ON" : "OFF";
+        let reason = isTimerOn ? 'Timer' : (isLdrOverrideWindow && isLdrDark ? 'LDR Override' : 'Timer');
+        
         clientRef.current?.publish(TOPIC_LDR_COMMAND, JSON.stringify({ led: command }));
-        addHistory(`Lampu Teras ${command} (Otomatis oleh ${isNightTime ? 'Timer' : 'LDR'})`);
+        addHistory(`Lampu Teras ${command} (Otomatis oleh ${reason})`);
       }
     }, 5000);
 
