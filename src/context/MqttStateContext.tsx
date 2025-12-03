@@ -148,16 +148,28 @@ export const MqttStateProvider = ({ children }: { children: ReactNode }) => {
   };
 
   const handleSetDelayTimer = (lamp: "kamar1" | "kamar2", delayMinutes: number) => {
+    // Hapus timer lama jika ada
     if (roomTimers.current[lamp]) clearTimeout(roomTimers.current[lamp]);
 
-    setLightStatus(prev => ({ ...prev, [lamp]: true }));
-    publish(TOPIC_ROOM_COMMAND, JSON.stringify({ [lamp === 'kamar1' ? 'toggle_lamp1' : 'toggle_lamp2']: true }));
+    const isCurrentlyOn = lightStatus[lamp];
+
+    // Jika lampu sedang mati, nyalakan
+    if (!isCurrentlyOn) {
+      setLightStatus(prev => ({ ...prev, [lamp]: true }));
+      publish(TOPIC_ROOM_COMMAND, JSON.stringify({ [lamp === 'kamar1' ? 'toggle_lamp1' : 'toggle_lamp2']: true }));
+    } else {
+      // Jika sudah menyala, tidak perlu kirim perintah, hanya reset timer
+      // dan pastikan state UI tetap menyala
+      setLightStatus(prev => ({ ...prev, [lamp]: true }));
+    }
     
-    const message = `Timer ${delayMinutes} menit diatur untuk Lampu ${lamp}`;
+    const message = `Timer ${delayMinutes} menit diatur untuk Lampu ${lamp}.`;
     addHistory(message);
     showSuccess(message);
 
+    // Atur timer baru untuk mematikan lampu
     roomTimers.current[lamp] = setTimeout(() => {
+      // Pastikan untuk mematikan (dengan toggle) setelah timer selesai
       setLightStatus(prev => ({ ...prev, [lamp]: false }));
       publish(TOPIC_ROOM_COMMAND, JSON.stringify({ [lamp === 'kamar1' ? 'toggle_lamp1' : 'toggle_lamp2']: true }));
       addHistory(`Lampu ${lamp} OFF (Timer Selesai)`);

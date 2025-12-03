@@ -6,7 +6,7 @@ const int LED_PIN = D1;      // Pin LED untuk lampu teras
 const int LAMP1_PIN = D5;    // Pin relay/LED untuk lampu kamar 1
 const int LAMP2_PIN = D6;    // Pin relay/LED untuk lampu kamar 2
 const int PB_PIN_1 = D2;     // Pin push button untuk lampu kamar 1
-const int PB_PIN_2 = D3;     // Pin push button untuk lampu kamar 2
+const int PB_PIN_2 = D7;     // <<< PIN DIUBAH DARI D3 KE D7
 
 // === PENGATURAN PROGRAM ===
 unsigned long send_interval = 1000; // Kirim status setiap 1 detik
@@ -72,7 +72,6 @@ void handleSerialCommand(String command) {
   if (doc.containsKey("toggle_lamp1")) lamp1_status = !lamp1_status;
   if (doc.containsKey("toggle_lamp2")) lamp2_status = !lamp2_status;
 
-  // (BARU) Menerima dan menyimpan data waktu dari Node-RED
   if (doc.containsKey("time")) {
     current_hour = doc["time"]["hour"];
     current_minute = doc["time"]["minute"];
@@ -100,16 +99,11 @@ void loop() {
   handleButton(&pb1_state, &last_pb1_state, PB_PIN_1, &lamp1_status, &last_debounce_time1);
   handleButton(&pb2_state, &last_pb2_state, PB_PIN_2, &lamp2_status, &last_debounce_time2);
 
-  // (LOGIKA BARU) Logika mode auto dengan RTC + LDR
   if (mode == "auto" && current_hour != -1) {
-    // Kondisi 1: Waktu malam (antara jam 18:00 - 05:59)
     bool is_night_time = (current_hour >= 18 || current_hour < 6);
-    
-    // Kondisi 2: LDR mendeteksi gelap
     int ldrValue = analogRead(LDR_PIN);
     bool is_ldr_dark = (ldrValue > ldr_threshold);
 
-    // Nyalakan lampu jika waktu malam ATAU jika LDR gelap
     if (is_night_time || is_ldr_dark) {
       led_status = "ON";
     } else {
