@@ -10,13 +10,12 @@ interface AppTheme {
 
 // Definisikan semua tema yang tersedia
 const themes: Record<string, AppTheme> = {
-  default: { // Mengubah tema default menjadi tema Natal
-    background: 'bg-gradient-to-br from-red-800 via-red-900 to-green-900',
-    card: 'bg-green-950/50 backdrop-blur-sm border-yellow-400/50',
-    text: 'text-yellow-100',
+  default: {
+    background: '', // Hapus kelas background agar gambar dari CSS bisa terlihat
+    card: 'bg-black/40 backdrop-blur-md border border-white/20',
+    text: 'text-white',
     header: 'text-yellow-300 font-serif'
   },
-  // Tema lama disimpan di sini jika ingin dikembalikan
   original: {
     background: 'bg-slate-900',
     card: 'bg-slate-800/50 backdrop-blur-sm border-slate-700',
