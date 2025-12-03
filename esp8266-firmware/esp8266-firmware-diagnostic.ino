@@ -1,252 +1,37 @@
-// =======================================================================
-// == KENDALI MODERN - FIRMWARE ESP8266 (VERSI DIAGNOSTIK TOMBOL FISIK) ==
-// =======================================================================
+// === FIRMWARE DIAGNOSTIK TOMBOL FISIK ===
+// Tujuan: Hanya untuk menguji apakah tombol terhubung dengan benar.
+// Unggah kode ini, buka Serial Monitor, dan tekan tombol.
+// Status harus berubah dari HIGH ke LOW saat ditekan.
 
-// Library yang dibutuhkan
-#include <ESP8266WiFi.h>
-#include <PubSubClient.h>
-#include <ArduinoJson.h>
+// === KONFIGURASI PIN ===
+const int PB_PIN_1 = D2; // Pin push button untuk lampu kamar 1
+const int PB_PIN_2 = D3; // Pin push button untuk lampu kamar 2
 
-// --- KONFIGURASI JARINGAN ---
-const char* ssid = "NAMA_WIFI_ANDA";
-const char* password = "PASSWORD_WIFI_ANDA";
-
-// --- KONFIGURASI MQTT BROKER ---
-const char* mqtt_server = "broker.hivemq.com";
-const int mqtt_port = 1883;
-
-// --- TOPIK MQTT SESUAI NODE-RED ---
-const char* TOPIC_STATUS = "POLINES/FADLI/IL";
-const char* TOPIC_CMD_TERAS = "POLINES/PADLI/IL";
-const char* TOPIC_CMD_THRESHOLD = "POLINES/BADLI/IL";
-const char* TOPIC_CMD_RUANG = "POLINES/LAMPU_RUANG/COMMAND";
-
-// --- PINOUT PERANGKAT KERAS ---
-const int LDR_PIN = A0;
-const int RELAY_TERAS_PIN = D1;
-const int RELAY_KAMAR1_PIN = D2;
-const int RELAY_KAMAR2_PIN = D3;
-const int PB_KAMAR1_PIN = D5;
-const int PB_KAMAR2_PIN = D6;
-
-// --- VARIABEL GLOBAL ---
-WiFiClient espClient;
-PubSubClient client(espClient);
-
-// Variabel untuk menyimpan state/status
-int ldrValue = 0;
-int ldrPercentage = 0;
-bool lampuTerasState = false;
-bool lampuKamar1State = false;
-bool lampuKamar2State = false;
-String mode = "auto";
-int autoThresholdPercentage = 40;
-
-// Variabel untuk debouncing push button
-unsigned long lastDebounceTime = 0;
-unsigned long debounceDelay = 50;
-int lastButtonStateKamar1 = HIGH;
-int lastButtonStateKamar2 = HIGH;
-
-// Timer untuk publikasi status rutin
-unsigned long lastStatusPublish = 0;
-const long publishInterval = 2000;
-
-// --- DEKLARASI FUNGSI ---
-void setup_wifi();
-void reconnect();
-void publishStatus();
-void handlePushButtons();
-
-// --- FUNGSI CALLBACK MQTT ---
-void callback(char* topic, byte* payload, unsigned int length) {
-  Serial.print("Pesan diterima [");
-  Serial.print(topic);
-  Serial.print("] ");
-
-  char message[length + 1];
-  strncpy(message, (char*)payload, length);
-  message[length] = '\0';
-  Serial.println(message);
-
-  StaticJsonDocument<256> doc;
-  DeserializationError error = deserializeJson(doc, message);
-
-  if (error) {
-    Serial.print(F("deserializeJson() gagal: "));
-    Serial.println(error.f_str());
-    return;
-  }
-
-  bool needsUpdate = false;
-
-  if (strcmp(topic, TOPIC_CMD_TERAS) == 0) {
-    if (doc.containsKey("mode")) {
-      mode = doc["mode"].as<String>();
-      needsUpdate = true;
-    }
-    if (doc.containsKey("led") && doc["led"] == "toggle") {
-      if (mode == "manual") {
-        lampuTerasState = !lampuTerasState;
-        digitalWrite(RELAY_TERAS_PIN, lampuTerasState);
-        needsUpdate = true;
-      }
-    }
-  } else if (strcmp(topic, TOPIC_CMD_THRESHOLD) == 0) {
-    if (doc.containsKey("threshold")) {
-      autoThresholdPercentage = map(doc["threshold"].as<int>(), 0, 1023, 0, 100);
-      needsUpdate = true;
-    }
-  } else if (strcmp(topic, TOPIC_CMD_RUANG) == 0) {
-    if (doc.containsKey("toggle_lamp1")) {
-      lampuKamar1State = !lampuKamar1State;
-      digitalWrite(RELAY_KAMAR1_PIN, lampuKamar1State);
-      needsUpdate = true;
-    }
-    if (doc.containsKey("toggle_lamp2")) {
-      lampuKamar2State = !lampuKamar2State;
-      digitalWrite(RELAY_KAMAR2_PIN, lampuKamar2State);
-      needsUpdate = true;
-    }
-  }
-
-  if (needsUpdate) {
-    publishStatus();
-  }
-}
-
-// --- FUNGSI SETUP ---
 void setup() {
-  Serial.begin(115200);
-  Serial.println("\n\n=== MEMULAI PROGRAM DIAGNOSTIK ===");
+  Serial.begin(9600);
+  // Beri jeda agar Serial Monitor siap
+  delay(2000); 
+  Serial.println("--- Program Diagnostik Tombol Dimulai ---");
   
-  pinMode(RELAY_TERAS_PIN, OUTPUT);
-  pinMode(RELAY_KAMAR1_PIN, OUTPUT);
-  pinMode(RELAY_KAMAR2_PIN, OUTPUT);
-  pinMode(PB_KAMAR1_PIN, INPUT_PULLUP);
-  pinMode(PB_KAMAR2_PIN, INPUT_PULLUP);
+  pinMode(PB_PIN_1, INPUT_PULLUP); 
+  pinMode(PB_PIN_2, INPUT_PULLUP); 
 
-  digitalWrite(RELAY_TERAS_PIN, LOW);
-  digitalWrite(RELAY_KAMAR1_PIN, LOW);
-  digitalWrite(RELAY_KAMAR2_PIN, LOW);
-
-  setup_wifi();
-  client.setServer(mqtt_server, mqtt_port);
-  client.setCallback(callback);
+  Serial.println("Pin D2 dan D3 telah diatur sebagai INPUT_PULLUP.");
+  Serial.println("Status normal seharusnya HIGH. Tekan tombol untuk melihat status LOW.");
+  Serial.println("-----------------------------------------");
 }
 
-// --- FUNGSI LOOP UTAMA ---
 void loop() {
-  if (!client.connected()) {
-    reconnect();
-  }
-  client.loop();
+  // Baca status pin secara langsung
+  int status_pb1 = digitalRead(PB_PIN_1);
+  int status_pb2 = digitalRead(PB_PIN_2);
 
-  handlePushButtons();
-
-  unsigned long now = millis();
-  if (now - lastStatusPublish > publishInterval) {
-    lastStatusPublish = now;
-    ldrValue = analogRead(LDR_PIN);
-    ldrPercentage = map(ldrValue, 0, 1023, 100, 0);
-    if (mode == "auto") {
-      bool shouldBeOn = (ldrPercentage < autoThresholdPercentage);
-      if (lampuTerasState != shouldBeOn) {
-        lampuTerasState = shouldBeOn;
-        digitalWrite(RELAY_TERAS_PIN, lampuTerasState);
-      }
-    }
-    publishStatus();
-  }
-}
-
-// --- FUNGSI BANTU ---
-
-void publishStatus() {
-  StaticJsonDocument<256> doc;
-  doc["intensity"] = ldrPercentage;
-  doc["led"] = lampuTerasState ? "ON" : "OFF";
-  doc["lamp1_status"] = lampuKamar1State;
-  doc["lamp2_status"] = lampuKamar2State;
-  doc["mode"] = mode;
-  doc["threshold"] = autoThresholdPercentage;
-  char buffer[256];
-  serializeJson(doc, buffer);
-  client.publish(TOPIC_STATUS, buffer, true);
-  Serial.print("Status dipublikasikan: ");
-  Serial.println(buffer);
-}
-
-void handlePushButtons() {
-  bool stateChanged = false;
-
-  int reading1 = digitalRead(PB_KAMAR1_PIN);
-  if (reading1 != lastButtonStateKamar1) {
-    lastDebounceTime = millis();
-  }
-  if ((millis() - lastDebounceTime) > debounceDelay) {
-    if (reading1 == LOW && lastButtonStateKamar1 == HIGH) {
-      // === BARIS DIAGNOSTIK DITAMBAHKAN DI SINI ===
-      Serial.println(">>> TOMBOL KAMAR 1 DITEKAN! <<<");
-      lampuKamar1State = !lampuKamar1State;
-      digitalWrite(RELAY_KAMAR1_PIN, lampuKamar1State);
-      stateChanged = true;
-    }
-  }
-  lastButtonStateKamar1 = reading1;
-
-  int reading2 = digitalRead(PB_KAMAR2_PIN);
-  if (reading2 != lastButtonStateKamar2) {
-    lastDebounceTime = millis();
-  }
-  if ((millis() - lastDebounceTime) > debounceDelay) {
-    if (reading2 == LOW && lastButtonStateKamar2 == HIGH) {
-      // === BARIS DIAGNOSTIK DITAMBAHKAN DI SINI ===
-      Serial.println(">>> TOMBOL KAMAR 2 DITEKAN! <<<");
-      lampuKamar2State = !lampuKamar2State;
-      digitalWrite(RELAY_KAMAR2_PIN, lampuKamar2State);
-      stateChanged = true;
-    }
-  }
-  lastButtonStateKamar2 = reading2;
-
-  if (stateChanged) {
-    Serial.println("Perubahan status dari tombol fisik, mengirim update...");
-    publishStatus();
-  }
-}
-
-void setup_wifi() {
-  delay(10);
-  Serial.println();
-  Serial.print("Menghubungkan ke ");
-  Serial.println(ssid);
-  WiFi.begin(ssid, password);
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(500);
-    Serial.print(".");
-  }
-  Serial.println("\nWiFi terhubung");
-  Serial.print("Alamat IP: ");
-  Serial.println(WiFi.localIP());
-}
-
-void reconnect() {
-  while (!client.connected()) {
-    Serial.print("Mencoba koneksi MQTT...");
-    String clientId = "ESP8266-KendaliModern-";
-    clientId += String(random(0xffff), HEX);
-    if (client.connect(clientId.c_str())) {
-      Serial.println("terhubung");
-      client.subscribe(TOPIC_CMD_TERAS);
-      client.subscribe(TOPIC_CMD_THRESHOLD);
-      client.subscribe(TOPIC_CMD_RUANG);
-      Serial.println("Berhasil subscribe ke semua topik perintah.");
-    } else {
-      Serial.print("gagal, rc=");
-      Serial.print(client.state());
-      Serial.println(" coba lagi dalam 5 detik");
-      delay(5000);
-    }
-  }
+  // Cetak status ke Serial Monitor
+  Serial.print("Status Saat Ini -> PB1 (Pin D2): ");
+  Serial.print(status_pb1 == HIGH ? "HIGH" : "LOW ");
+  Serial.print(" | PB2 (Pin D3): ");
+  Serial.println(status_pb2 == HIGH ? "HIGH" : "LOW ");
+  
+  // Beri jeda agar Serial Monitor tidak terlalu cepat
+  delay(200); 
 }
