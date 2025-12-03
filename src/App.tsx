@@ -12,18 +12,17 @@ import Control from "./pages/Control";
 import Logs from "./pages/Logs";
 import Tools from "./pages/Tools";
 import Admin from "./pages/Admin";
-import { MqttProvider } from "./components/MqttProvider";
 import { AuthProvider } from "./context/AuthContext";
 import AuthenticatedLayout from "./components/AuthenticatedLayout";
 import AdminRoute from "./components/AdminRoute";
 import { ThemeProvider } from "./context/ThemeContext";
 import Snowfall from "./components/Snowfall";
+import { MqttStateProvider } from "./context/MqttStateContext"; // Import the new provider
 
 const queryClient = new QueryClient();
-const BROKER_URL = "ws://broker.hivemq.com:8000/mqtt";
 
 const App = () => (
-  <MqttProvider brokerUrl={BROKER_URL}>
+  <MqttStateProvider> {/* Use the self-contained MqttStateProvider */}
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <Toaster />
@@ -56,7 +55,7 @@ const App = () => (
         </BrowserRouter>
       </TooltipProvider>
     </QueryClientProvider>
-  </MqttProvider>
+  </MqttStateProvider>
 );
 
 export default App;

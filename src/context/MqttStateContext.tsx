@@ -1,13 +1,20 @@
-import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from "react";
-import { useMqtt } from "@/components/MqttProvider";
+import React, { createContext, useContext, useState, useEffect, useRef, ReactNode, useCallback } from "react";
+import mqtt, { MqttClient } from "mqtt";
 import { HistoryEntry } from "@/components/HistoryLog";
-import { showSuccess } from "@/utils/toast";
+import { showSuccess, showError } from "@/utils/toast";
 
 const MAX_CHART_POINTS = 30;
 const TOPIC_LDR_STATUS = "POLINES/FADLI/IL";
 const TOPIC_LDR_COMMAND = "POLINES/PADLI/IL";
 const TOPIC_LDR_THRESHOLD_SET = "POLINES/BADLI/IL";
 const TOPIC_ROOM_COMMAND = "POLINES/LAMPU_RUANG/COMMAND";
+const BROKER_URL = "ws://broker.hivemq.com:8000/mqtt";
+
+interface LightStatus {
+  teras: boolean;
+  kamar1: boolean;
+  kamar2: boolean;
+}
 
 interface MqttState {
   lightIntensity: number;
@@ -15,7 +22,7 @@ interface MqttState {
   terraceMode: "auto" | "manual";
   chartData: { time: string; intensity: number }[];
   history: HistoryEntry[];
-  lightStatus: { teras: boolean; kamar1: boolean; kamar2: boolean };
+  lightStatus: LightStatus;
   connectionStatus: string;
   handleSetTerraceMode: (newMode: "auto" | "manual") => void;
   handleToggleTerraceLamp: () => void;
@@ -35,7 +42,9 @@ export const useMqttState = () => {
 };
 
 export const MqttStateProvider = ({ children }: { children: ReactNode }) => {
-  const { client, connectionStatus, publish } = useMqtt();
+  const clientRef = useRef<MqttClient | null>(null);
+  const [connectionStatus, setConnectionStatus] = useState("Disconnected");
+  
   const [lightIntensity, setLightIntensity] = useState(0);
   const [terraceThreshold, setTerraceThreshold] = useState(40);
   const [terraceMode, setTerraceMode] = useState<"auto" | "manual">("auto");
@@ -47,33 +56,56 @@ export const MqttStateProvider = ({ children }: { children: ReactNode }) => {
   const roomTimers = useRef<{ kamar1?: NodeJS.Timeout; kamar2?: NodeJS.Timeout }>({});
   const isConnected = connectionStatus === "Connected";
 
-  const addHistory = (message: string) => {
+  const addHistory = useCallback((message: string) => {
     setHistory((prev) => [...prev, { timestamp: new Date(), message }].slice(-50)); // Limit history size
-  };
+  }, []);
 
+  // --- MQTT CONNECTION LOGIC ---
   useEffect(() => {
-    if (!client || !isConnected) return;
+    const client = mqtt.connect(BROKER_URL, {
+      clientId: 'mqttjs_' + Math.random().toString(16).substr(2, 8),
+      clean: true,
+    });
+    clientRef.current = client;
 
-    client.subscribe(TOPIC_LDR_STATUS);
-    
+    client.on("connect", () => {
+      setConnectionStatus("Connected");
+      client.subscribe(TOPIC_LDR_STATUS);
+      addHistory("MQTT Broker Connected.");
+    });
+
+    client.on("reconnect", () => {
+      setConnectionStatus("Reconnecting");
+    });
+
+    client.on("close", () => {
+      setConnectionStatus("Disconnected");
+      addHistory("MQTT Broker Disconnected.");
+    });
+
+    client.on("error", (err) => {
+      console.error("Connection error: ", err);
+      setConnectionStatus("Error");
+      client.end();
+    });
+
     const messageHandler = (topic: string, payload: Buffer) => {
       try {
         const data = JSON.parse(payload.toString());
         if (topic === TOPIC_LDR_STATUS) {
+          // Update state based on incoming data
           setLightIntensity(data.intensity ?? 0);
           setTerraceMode(data.mode?.toLowerCase() ?? "auto");
           setTerraceThreshold(data.threshold ?? 40);
           
-          if ((data.mode?.toLowerCase() ?? "auto") === "manual") {
-            setLightStatus(prev => ({ ...prev, teras: data.led === "ON" }));
-          }
-          
           setLightStatus(prev => ({
             ...prev,
-            kamar1: data.lamp1_status ?? prev.kamar1,
-            kamar2: data.lamp2_status ?? prev.kamar2,
+            teras: data.led === "ON",
+            kamar1: !!data.lamp1_status,
+            kamar2: !!data.lamp2_status,
           }));
 
+          // Update chart data
           const now = new Date();
           const newPoint = {
             time: `${now.getHours()}:${now.getMinutes()}:${now.getSeconds()}`,
@@ -87,12 +119,20 @@ export const MqttStateProvider = ({ children }: { children: ReactNode }) => {
     };
 
     client.on("message", messageHandler);
-    return () => { client.off("message", messageHandler); };
-  }, [client, isConnected]);
 
+    return () => {
+      if (clientRef.current) {
+        clientRef.current.end();
+      }
+    };
+  }, [addHistory]);
+
+  // --- AUTO MODE LOGIC (Client-side fallback/simulation) ---
+  // NOTE: This logic was present in the original file and is kept for continuity, 
+  // although the ESP should handle the core auto logic.
   useEffect(() => {
     const timerInterval = setInterval(() => {
-      if (terraceMode !== "auto") return;
+      if (terraceMode !== "auto" || !isConnected) return;
 
       const now = new Date();
       const hours = now.getHours();
@@ -103,27 +143,42 @@ export const MqttStateProvider = ({ children }: { children: ReactNode }) => {
       
       const shouldBeOn = isNightTime || isLdrDark;
 
+      // Only publish if the state needs to change
       if (lightStatus.teras !== shouldBeOn) {
-        setLightStatus(prev => ({ ...prev, teras: shouldBeOn }));
-        publish(TOPIC_LDR_COMMAND, JSON.stringify({ led: shouldBeOn ? "ON" : "OFF" }));
-        addHistory(`Lampu Teras ${shouldBeOn ? 'ON' : 'OFF'} (Otomatis oleh ${isNightTime ? 'Timer' : 'LDR'})`);
+        // We rely on the ESP to confirm the state change, but we publish the command
+        const command = shouldBeOn ? "ON" : "OFF";
+        clientRef.current?.publish(TOPIC_LDR_COMMAND, JSON.stringify({ led: command }));
+        addHistory(`Lampu Teras ${command} (Otomatis oleh ${isNightTime ? 'Timer' : 'LDR'})`);
       }
     }, 5000);
 
     return () => clearInterval(timerInterval);
-  }, [terraceMode, lightIntensity, terraceThreshold, lightStatus.teras, publish]);
+  }, [terraceMode, lightIntensity, terraceThreshold, lightStatus.teras, isConnected, addHistory]);
+
+
+  // --- ACTION HANDLERS ---
+
+  const publishCommand = (topic: string, payload: object, logMessage: string) => {
+    if (!clientRef.current || !isConnected) {
+      showError("MQTT tidak terhubung. Gagal mengirim perintah.");
+      return;
+    }
+    clientRef.current.publish(topic, JSON.stringify(payload), { qos: 2, retain: false });
+    addHistory(logMessage);
+  };
 
   const handleSetTerraceMode = (newMode: "auto" | "manual") => {
-    publish(TOPIC_LDR_COMMAND, JSON.stringify({ mode: newMode }));
-    addHistory(`Mode Lampu Teras diubah ke ${newMode.toUpperCase()}`);
+    publishCommand(TOPIC_LDR_COMMAND, { mode: newMode }, `Mode Lampu Teras diubah ke ${newMode.toUpperCase()}`);
   };
 
   const handleToggleTerraceLamp = () => {
     if (terraceMode === 'manual') {
       const newState = !lightStatus.teras;
-      publish(TOPIC_LDR_COMMAND, JSON.stringify({ led: "toggle" }));
+      publishCommand(TOPIC_LDR_COMMAND, { led: "toggle" }, `Lampu Teras ${newState ? 'ON' : 'OFF'} (Manual)`);
+      // Optimistic update
       setLightStatus(prev => ({ ...prev, teras: newState }));
-      addHistory(`Lampu Teras ${newState ? 'ON' : 'OFF'} (Manual)`);
+    } else {
+      showError("Lampu Teras hanya bisa di-toggle dalam mode MANUAL.");
     }
   };
 
@@ -132,19 +187,18 @@ export const MqttStateProvider = ({ children }: { children: ReactNode }) => {
     if (debounceTimer.current) clearTimeout(debounceTimer.current);
     debounceTimer.current = setTimeout(() => {
       const deviceThreshold = Math.round((newThreshold / 100) * 1023);
-      publish(TOPIC_LDR_THRESHOLD_SET, JSON.stringify({ threshold: deviceThreshold }));
-      addHistory(`Ambang batas LDR diatur ke ${newThreshold}%`);
+      publishCommand(TOPIC_LDR_THRESHOLD_SET, { threshold: deviceThreshold }, `Ambang batas LDR diatur ke ${newThreshold}%`);
     }, 400);
   };
 
   const handleToggleRoomLamp = (lamp: "kamar1" | "kamar2") => {
     const newState = !lightStatus[lamp];
-    setLightStatus(prev => ({ ...prev, [lamp]: newState }));
-    
     const command = lamp === 'kamar1' ? { toggle_lamp1: true } : { toggle_lamp2: true };
-    publish(TOPIC_ROOM_COMMAND, JSON.stringify(command));
     
-    addHistory(`Lampu ${lamp} ${newState ? 'ON' : 'OFF'} (Manual)`);
+    publishCommand(TOPIC_ROOM_COMMAND, command, `Lampu ${lamp} ${newState ? 'ON' : 'OFF'} (Manual)`);
+    
+    // Optimistic update
+    setLightStatus(prev => ({ ...prev, [lamp]: newState }));
   };
 
   const handleSetDelayTimer = (lamp: "kamar1" | "kamar2", delayMinutes: number) => {
@@ -153,25 +207,19 @@ export const MqttStateProvider = ({ children }: { children: ReactNode }) => {
 
     const isCurrentlyOn = lightStatus[lamp];
 
-    // Jika lampu sedang mati, nyalakan
+    // Jika lampu sedang mati, nyalakan (toggle)
     if (!isCurrentlyOn) {
-      setLightStatus(prev => ({ ...prev, [lamp]: true }));
-      publish(TOPIC_ROOM_COMMAND, JSON.stringify({ [lamp === 'kamar1' ? 'toggle_lamp1' : 'toggle_lamp2']: true }));
-    } else {
-      // Jika sudah menyala, tidak perlu kirim perintah, hanya reset timer
-      // dan pastikan state UI tetap menyala
-      setLightStatus(prev => ({ ...prev, [lamp]: true }));
+      handleToggleRoomLamp(lamp); // Kirim perintah nyala
     }
     
     const message = `Timer ${delayMinutes} menit diatur untuk Lampu ${lamp}.`;
     addHistory(message);
     showSuccess(message);
 
-    // Atur timer baru untuk mematikan lampu
+    // Atur timer baru untuk mematikan lampu (toggle)
     roomTimers.current[lamp] = setTimeout(() => {
-      // Pastikan untuk mematikan (dengan toggle) setelah timer selesai
-      setLightStatus(prev => ({ ...prev, [lamp]: false }));
-      publish(TOPIC_ROOM_COMMAND, JSON.stringify({ [lamp === 'kamar1' ? 'toggle_lamp1' : 'toggle_lamp2']: true }));
+      // Kirim perintah toggle lagi untuk mematikan
+      handleToggleRoomLamp(lamp);
       addHistory(`Lampu ${lamp} OFF (Timer Selesai)`);
     }, delayMinutes * 60 * 1000);
   };
