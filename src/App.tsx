@@ -16,6 +16,7 @@ import { MqttProvider } from "./components/MqttProvider";
 import { AuthProvider } from "./context/AuthContext";
 import AuthenticatedLayout from "./components/AuthenticatedLayout";
 import AdminRoute from "./components/AdminRoute";
+import { ThemeProvider } from "./context/ThemeContext";
 
 const queryClient = new QueryClient();
 const BROKER_URL = "ws://broker.hivemq.com:8000/mqtt";
@@ -27,27 +28,29 @@ const App = () => (
         <Toaster />
         <Sonner />
         <BrowserRouter>
-          <AuthProvider>
-            <Routes>
-              <Route path="/" element={<Index />} />
-              <Route path="/login" element={<Login />} />
-              <Route path="/signup" element={<SignUp />} />
-              
-              {/* Semua rute yang dilindungi sekarang menggunakan AuthenticatedLayout */}
-              <Route element={<AuthenticatedLayout />}>
-                <Route path="/home" element={<Home />} />
-                <Route path="/control" element={<Control />} />
-                <Route path="/logs" element={<Logs />} />
-                <Route path="/tools" element={<Tools />} />
-                {/* Rute Admin yang dilindungi */}
-                <Route element={<AdminRoute />}>
-                  <Route path="/admin" element={<Admin />} />
+          <ThemeProvider>
+            <AuthProvider>
+              <Routes>
+                <Route path="/" element={<Index />} />
+                <Route path="/login" element={<Login />} />
+                <Route path="/signup" element={<SignUp />} />
+                
+                {/* Semua rute yang dilindungi sekarang menggunakan AuthenticatedLayout */}
+                <Route element={<AuthenticatedLayout />}>
+                  <Route path="/home" element={<Home />} />
+                  <Route path="/control" element={<Control />} />
+                  <Route path="/logs" element={<Logs />} />
+                  <Route path="/tools" element={<Tools />} />
+                  {/* Rute Admin yang dilindungi */}
+                  <Route element={<AdminRoute />}>
+                    <Route path="/admin" element={<Admin />} />
+                  </Route>
                 </Route>
-              </Route>
 
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </AuthProvider>
+                <Route path="*" element={<NotFound />} />
+              </Routes>
+            </AuthProvider>
+          </ThemeProvider>
         </BrowserRouter>
       </TooltipProvider>
     </QueryClientProvider>

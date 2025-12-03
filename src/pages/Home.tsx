@@ -2,12 +2,15 @@ import { useAuth } from "@/context/AuthContext";
 import HomeMenuCard from "@/components/HomeMenuCard";
 import { Button } from "@/components/ui/button";
 import { LogOut, SlidersHorizontal, List, History, UserCog } from "lucide-react";
+import { useTheme } from "@/context/ThemeContext";
+import TeamInfo from "@/components/TeamInfo";
 
 const Home = () => {
   const { currentUser, logout } = useAuth();
+  const { theme } = useTheme();
 
   return (
-    <div className="min-h-screen w-full bg-slate-900 text-white p-4 md:p-8 relative overflow-hidden">
+    <div className={`min-h-screen w-full ${theme.background} ${theme.text} p-4 md:p-8 relative overflow-hidden transition-colors duration-500`}>
       {/* Futuristic background elements */}
       <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(56,189,248,0.3),rgba(255,255,255,0))]"></div>
       <div className="absolute bottom-0 right-[-20%] top-[-10%] h-[500px] w-[500px] rounded-full bg-[radial-gradient(circle_farthest-side,rgba(255,0,182,.15),rgba(255,255,255,0))]"></div>
@@ -19,7 +22,7 @@ const Home = () => {
             <h2 className="text-lg font-medium text-sky-400 tracking-widest">
               TUGAS AKHIR MATA KULIAH
             </h2>
-            <h1 className="text-4xl md:text-5xl font-bold bg-clip-text text-transparent bg-gradient-to-b from-neutral-50 to-neutral-400 py-2">
+            <h1 className={`text-4xl md:text-5xl font-bold py-2 ${theme.header}`}>
               Kendali Modern
             </h1>
             <p className="text-slate-400 mt-2">
@@ -61,6 +64,9 @@ const Home = () => {
              </div>
           )}
         </main>
+        <div className="max-w-5xl mx-auto">
+            <TeamInfo />
+        </div>
       </div>
     </div>
   );

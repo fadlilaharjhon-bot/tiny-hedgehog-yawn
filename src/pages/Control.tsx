@@ -9,6 +9,7 @@ import { useMqttState } from "@/context/MqttStateContext";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
+import { useTheme } from "@/context/ThemeContext";
 
 const Control = () => {
   const {
@@ -25,11 +26,12 @@ const Control = () => {
     handleSetDelayTimer,
   } = useMqttState();
   const { currentUser } = useAuth();
+  const { theme } = useTheme();
 
   const isConnected = connectionStatus === "Connected";
 
   return (
-    <div className="min-h-screen w-full bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-900 text-white p-4 md:p-8">
+    <div className={`min-h-screen w-full ${theme.background} ${theme.text} p-4 md:p-8 transition-colors duration-500`}>
       <div className="container mx-auto">
         <div className="flex justify-between items-center mb-4">
           <Button asChild variant="outline" className="bg-transparent hover:bg-white/10">

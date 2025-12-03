@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { UserPlus } from "lucide-react";
 import { Link } from "react-router-dom";
+import { useTheme } from "@/context/ThemeContext";
 
 const SignUp = () => {
   const [username, setUsername] = useState("");
@@ -14,6 +15,7 @@ const SignUp = () => {
   const [error, setError] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
   const { signUp } = useAuth();
+  const { theme } = useTheme();
 
   const handleSignUp = () => {
     setError("");
@@ -39,8 +41,8 @@ const SignUp = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 to-slate-800 p-4">
-      <Card className="w-full max-w-sm bg-slate-800/50 backdrop-blur-sm border-slate-700 text-white">
+    <div className={`min-h-screen flex items-center justify-center ${theme.background} p-4 transition-colors duration-500`}>
+      <Card className={`w-full max-w-sm ${theme.card} ${theme.text}`}>
         <CardHeader className="text-center">
           <div className="flex justify-center mb-4">
             <UserPlus className="w-12 h-12 text-blue-400" />

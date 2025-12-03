@@ -6,12 +6,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Lightbulb } from "lucide-react";
 import { Link } from "react-router-dom";
+import { useTheme } from "@/context/ThemeContext";
 
 const Login = () => {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const { login } = useAuth();
+  const { theme } = useTheme();
 
   const handleLogin = () => {
     setError("");
@@ -22,8 +24,8 @@ const Login = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-900 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(120,119,198,0.3),rgba(255,255,255,0))] p-4">
-      <Card className="w-full max-w-sm bg-slate-800/50 backdrop-blur-sm border-slate-700 text-white">
+    <div className={`min-h-screen flex items-center justify-center ${theme.background} p-4 transition-colors duration-500`}>
+      <Card className={`w-full max-w-sm ${theme.card} ${theme.text}`}>
         <CardHeader className="text-center">
           <div className="flex justify-center mb-4">
             <Lightbulb className="w-12 h-12 text-yellow-400" />
