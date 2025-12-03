@@ -42,10 +42,6 @@ bool lampuKamar2State = false;
 String mode = "auto";
 int autoThresholdPercentage = 40; // Threshold dalam persen (0-100)
 
-// Variabel RTC (disinkronkan dari Node-RED)
-int currentHour = 0;
-int currentMinute = 0;
-
 // Variabel untuk debouncing push button
 unsigned long lastDebounceTime = 0;
 unsigned long debounceDelay = 50;
@@ -61,7 +57,6 @@ void setup_wifi();
 void reconnect();
 void publishStatus();
 void handlePushButtons();
-void handleSerialCommands(); // Deklarasi fungsi baru
 
 // --- FUNGSI CALLBACK MQTT ---
 // Fungsi ini dipanggil setiap kali ada pesan masuk dari topik yang di-subscribe
@@ -86,7 +81,7 @@ void callback(char* topic, byte* payload, unsigned int length) {
 
   bool needsUpdate = false;
 
-  // --- PENYESUAIAN: Logika berdasarkan topik yang masuk (dari Dashboard/Web App) ---
+  // --- PENYESUAIAN: Logika berdasarkan topik yang masuk ---
   if (strcmp(topic, TOPIC_CMD_TERAS) == 0) {
     if (doc.containsKey("mode")) {
       mode = doc["mode"].as<String>();
@@ -150,7 +145,6 @@ void loop() {
   }
   client.loop();
 
-  handleSerialCommands(); // Cek perintah dari Node-RED Serial (termasuk RTC)
   handlePushButtons();
 
   unsigned long now = millis();
@@ -159,31 +153,14 @@ void loop() {
 
     // Baca LDR dan update status
     ldrValue = analogRead(LDR_PIN);
-    // LDR: 0 (gelap) -> 1023 (terang). Percentage: 0 (gelap) -> 100 (terang)
-    ldrPercentage = map(ldrValue, 0, 1023, 100, 0); 
+    ldrPercentage = map(ldrValue, 0, 1023, 100, 0);
 
-    // Logika mode auto untuk lampu teras (LDR + Timer)
+    // Logika mode auto untuk lampu teras (LDR ONLY)
     if (mode == "auto") {
-      bool isLdrDark = (ldrPercentage < autoThresholdPercentage);
-      bool shouldBeOn = false;
-
-      // 1. Timer Logic: ON 18:00 (6 PM) - 06:00 (6 AM)
-      bool isTimerOn = (currentHour >= 18 || currentHour < 6);
-      
-      // 2. LDR Override Window: 16:00 (4 PM) - 18:00 (6 PM)
-      bool isLdrOverrideWindow = (currentHour >= 16 && currentHour < 18);
-      
-      // Lampu harus NYALA jika:
-      // a) Timer ON (18:00 - 06:00)
-      // ATAU
-      // b) Sedang dalam jendela override (16:00 - 18:00) DAN LDR gelap
-      shouldBeOn = isTimerOn || (isLdrOverrideWindow && isLdrDark);
-
+      bool shouldBeOn = (ldrPercentage < autoThresholdPercentage);
       if (lampuTerasState != shouldBeOn) {
         lampuTerasState = shouldBeOn;
         digitalWrite(RELAY_TERAS_PIN, lampuTerasState);
-        // Force publish status immediately on state change
-        publishStatus(); 
       }
     }
     
@@ -192,66 +169,6 @@ void loop() {
 }
 
 // --- FUNGSI BANTU ---
-
-void handleSerialCommands() {
-  while (Serial.available() > 0) {
-    String input = Serial.readStringUntil('\n');
-    if (input.length() > 0) {
-      Serial.print("Serial Command Received: ");
-      Serial.println(input);
-
-      StaticJsonDocument<256> doc;
-      DeserializationError error = deserializeJson(doc, input);
-
-      if (error) {
-        Serial.print(F("deserializeJson() gagal dari Serial: "));
-        Serial.println(error.f_str());
-        return;
-      }
-
-      bool needsUpdate = false;
-
-      // Handle Time Sync (RTC)
-      if (doc.containsKey("time")) {
-        currentHour = doc["time"]["hour"].as<int>();
-        currentMinute = doc["time"]["minute"].as<int>();
-        Serial.printf("RTC Updated: %02d:%02d\n", currentHour, currentMinute);
-      }
-      
-      // Handle other commands bridged by Node-RED Serial Out
-      if (doc.containsKey("mode")) {
-        mode = doc["mode"].as<String>();
-        needsUpdate = true;
-      }
-      if (doc.containsKey("led") && doc["led"] == "toggle") {
-        if (mode == "manual") {
-          lampuTerasState = !lampuTerasState;
-          digitalWrite(RELAY_TERAS_PIN, lampuTerasState);
-          needsUpdate = true;
-        }
-      }
-      if (doc.containsKey("threshold")) {
-        // Menerima nilai 0-1023, konversi ke persen
-        autoThresholdPercentage = map(doc["threshold"].as<int>(), 0, 1023, 0, 100);
-        needsUpdate = true;
-      }
-      if (doc.containsKey("toggle_lamp1")) {
-        lampuKamar1State = !lampuKamar1State;
-        digitalWrite(RELAY_KAMAR1_PIN, lampuKamar1State);
-        needsUpdate = true;
-      }
-      if (doc.containsKey("toggle_lamp2")) {
-        lampuKamar2State = !lampuKamar2State;
-        digitalWrite(RELAY_KAMAR2_PIN, lampuKamar2State);
-        needsUpdate = true;
-      }
-
-      if (needsUpdate) {
-        publishStatus();
-      }
-    }
-  }
-}
 
 void publishStatus() {
   StaticJsonDocument<256> doc;

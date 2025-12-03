@@ -101,6 +101,7 @@ export const MqttStateProvider = ({ children }: { children: ReactNode }) => {
           setLightStatus(prev => ({
             ...prev,
             teras: data.led === "ON",
+            // Note: lamp1_status dan lamp2_status harus dikirim oleh ESP/MicroPython
             kamar1: !!data.lamp1_status,
             kamar2: !!data.lamp2_status,
           }));
@@ -128,38 +129,9 @@ export const MqttStateProvider = ({ children }: { children: ReactNode }) => {
   }, [addHistory]);
 
   // --- AUTO MODE LOGIC (Client-side fallback/simulation) ---
-  useEffect(() => {
-    const timerInterval = setInterval(() => {
-      if (terraceMode !== "auto" || !isConnected) return;
-
-      const now = new Date();
-      const hours = now.getHours();
-      
-      const isLdrDark = lightIntensity < terraceThreshold;
-      
-      // 1. Timer Logic: ON 18:00 (6 PM) - 06:00 (6 AM)
-      const isTimerOn = hours >= 18 || hours < 6;
-      
-      // 2. LDR Override Window: 16:00 (4 PM) - 18:00 (6 PM)
-      const isLdrOverrideWindow = hours >= 16 && hours < 18;
-      
-      // Should be ON if Timer is ON OR if it's the LDR override window AND it's dark
-      const shouldBeOn = isTimerOn || (isLdrOverrideWindow && isLdrDark);
-
-      // Only publish if the state needs to change
-      if (lightStatus.teras !== shouldBeOn) {
-        const command = shouldBeOn ? "ON" : "OFF";
-        let reason = isTimerOn ? 'Timer' : (isLdrOverrideWindow && isLdrDark ? 'LDR Override' : 'Timer');
-        
-        clientRef.current?.publish(TOPIC_LDR_COMMAND, JSON.stringify({ led: command }));
-        addHistory(`Lampu Teras ${command} (Otomatis oleh ${reason})`);
-      }
-    }, 5000);
-
-    return () => clearInterval(timerInterval);
-  }, [terraceMode, lightIntensity, terraceThreshold, lightStatus.teras, isConnected, addHistory]);
-
-
+  // LOGIKA AUTO MODE BERBASIS TIMER DIHAPUS KARENA SUDAH DIHAPUS DARI ESP.
+  // Auto mode sekarang sepenuhnya ditangani oleh LDR di ESP8266.
+  
   // --- ACTION HANDLERS ---
 
   const publishCommand = (topic: string, payload: object, logMessage: string) => {
@@ -190,6 +162,7 @@ export const MqttStateProvider = ({ children }: { children: ReactNode }) => {
     setTerraceThreshold(newThreshold);
     if (debounceTimer.current) clearTimeout(debounceTimer.current);
     debounceTimer.current = setTimeout(() => {
+      // Kirim nilai 0-1023 ke ESP via Node-RED
       const deviceThreshold = Math.round((newThreshold / 100) * 1023);
       publishCommand(TOPIC_LDR_THRESHOLD_SET, { threshold: deviceThreshold }, `Ambang batas LDR diatur ke ${newThreshold}%`);
     }, 400);
@@ -197,6 +170,7 @@ export const MqttStateProvider = ({ children }: { children: ReactNode }) => {
 
   const handleToggleRoomLamp = (lamp: "kamar1" | "kamar2") => {
     const newState = !lightStatus[lamp];
+    // Perintah ini akan ditangkap oleh Node-RED flow 'Integrasi Kontrol Gestur Python'
     const command = lamp === 'kamar1' ? { toggle_lamp1: true } : { toggle_lamp2: true };
     
     publishCommand(TOPIC_ROOM_COMMAND, command, `Lampu ${lamp} ${newState ? 'ON' : 'OFF'} (Manual)`);
