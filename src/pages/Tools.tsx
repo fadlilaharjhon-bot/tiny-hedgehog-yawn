@@ -1,16 +1,40 @@
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowLeft, Cpu, Lightbulb, Router } from "lucide-react";
+import { ArrowLeft, Cpu, Lightbulb, Cable, CircuitBoard } from "lucide-react";
 import { useTheme } from "@/context/ThemeContext";
 
 const tools = [
-  { name: "ESP8266 NodeMCU", icon: <Cpu className="w-6 h-6 text-sky-400" /> },
-  { name: "Sensor LDR (Light Dependent Resistor)", icon: <Lightbulb className="w-6 h-6 text-yellow-400" /> },
-  { name: "Modul Relay 2 Channel", icon: <Router className="w-6 h-6 text-emerald-400" /> },
-  { name: "Lampu LED", icon: <Lightbulb className="w-6 h-6 text-yellow-400" /> },
-  { name: "Kabel Jumper", icon: <Cpu className="w-6 h-6 text-gray-400" /> },
-  { name: "Project Board", icon: <Cpu className="w-6 h-6 text-red-400" /> },
+  { 
+    name: "ESP8266 (NodeMCU/Wemos D1 Mini)", 
+    description: "Digunakan sebagai mikrokontroler utama untuk membaca data sensor LDR dan mengontrol LED/lampu.",
+    icon: <Cpu className="w-8 h-8 text-sky-400 flex-shrink-0" /> 
+  },
+  { 
+    name: "Resistor 220 Ω", 
+    description: "Berfungsi sebagai pembatas arus untuk LED agar tidak rusak saat diberi tegangan.",
+    icon: <CircuitBoard className="w-8 h-8 text-gray-400 flex-shrink-0" />
+  },
+  { 
+    name: "Sensor LDR (Light Dependent Resistor)", 
+    description: "Digunakan sebagai sensor cahaya untuk mendeteksi kondisi terang atau gelap di ruangan atau teras.",
+    icon: <Lightbulb className="w-8 h-8 text-yellow-400 flex-shrink-0" /> 
+  },
+  { 
+    name: "LED", 
+    description: "Sebagai indikator lampu otomatis yang menyala saat kondisi gelap berdasarkan pembacaan sensor LDR.",
+    icon: <Lightbulb className="w-8 h-8 text-amber-400 flex-shrink-0" /> 
+  },
+  { 
+    name: "Kabel Jumper (Male–Male / Male–Female)", 
+    description: "Untuk menghubungkan ESP8266, LDR, resistor, dan LED di protoboard.",
+    icon: <Cable className="w-8 h-8 text-red-400 flex-shrink-0" /> 
+  },
+  { 
+    name: "Protoboard (Breadboard)", 
+    description: "Media perakitan rangkaian tanpa perlu menyolder komponen.",
+    icon: <CircuitBoard className="w-8 h-8 text-emerald-400 flex-shrink-0" /> 
+  },
 ];
 
 const Tools = () => {
@@ -32,17 +56,22 @@ const Tools = () => {
         <main>
           <Card className={`${theme.card} ${theme.text}`}>
             <CardHeader>
-              <CardTitle>Daftar Komponen Perangkat Keras</CardTitle>
+              <CardTitle>Komponen Perangkat Keras</CardTitle>
             </CardHeader>
             <CardContent>
-              <ul className="space-y-4">
+              <div className="space-y-6">
                 {tools.map((tool, index) => (
-                  <li key={index} className="flex items-center gap-4 p-3 bg-slate-800 rounded-lg">
-                    {tool.icon}
-                    <span className="text-lg">{tool.name}</span>
-                  </li>
+                  <div key={index} className="flex items-start gap-4 p-4 bg-slate-800/50 rounded-lg">
+                    <div className="p-2 bg-slate-700/50 rounded-md">
+                      {tool.icon}
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-semibold">{tool.name}</h3>
+                      <p className="text-slate-400">{tool.description}</p>
+                    </div>
+                  </div>
                 ))}
-              </ul>
+              </div>
             </CardContent>
           </Card>
         </main>
