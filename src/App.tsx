@@ -17,6 +17,7 @@ import { AuthProvider } from "./context/AuthContext";
 import AuthenticatedLayout from "./components/AuthenticatedLayout";
 import AdminRoute from "./components/AdminRoute";
 import { ThemeProvider } from "./context/ThemeContext";
+import Snowfall from "./components/Snowfall";
 
 const queryClient = new QueryClient();
 const BROKER_URL = "ws://broker.hivemq.com:8000/mqtt";
@@ -30,6 +31,7 @@ const App = () => (
         <BrowserRouter>
           <ThemeProvider>
             <AuthProvider>
+              <Snowfall />
               <Routes>
                 <Route path="/" element={<Index />} />
                 <Route path="/login" element={<Login />} />

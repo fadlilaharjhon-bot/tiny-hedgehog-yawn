@@ -11,26 +11,22 @@ const Home = () => {
 
   return (
     <div className={`min-h-screen w-full ${theme.background} ${theme.text} p-4 md:p-8 relative overflow-hidden transition-colors duration-500`}>
-      {/* Futuristic background elements */}
-      <div className="absolute top-0 left-0 w-full h-full bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(56,189,248,0.3),rgba(255,255,255,0))]"></div>
-      <div className="absolute bottom-0 right-[-20%] top-[-10%] h-[500px] w-[500px] rounded-full bg-[radial-gradient(circle_farthest-side,rgba(255,0,182,.15),rgba(255,255,255,0))]"></div>
-      <div className="absolute bottom-0 left-[-20%] top-[-10%] h-[500px] w-[500px] rounded-full bg-[radial-gradient(circle_farthest-side,rgba(255,0,182,.15),rgba(255,255,255,0))]"></div>
-
+      
       <div className="container mx-auto relative z-10">
         <header className="flex justify-between items-center mb-8">
           <div className="text-center mx-auto">
-            <h2 className="text-lg font-medium text-sky-400 tracking-widest">
-              TUGAS AKHIR MATA KULIAH
+            <h2 className="text-lg font-medium text-yellow-400 tracking-widest">
+              SELAMAT HARI NATAL! 🎄
             </h2>
             <h1 className={`text-4xl md:text-5xl font-bold py-2 ${theme.header}`}>
               Kendali Modern
             </h1>
-            <p className="text-slate-400 mt-2">
-              Selamat Datang, <span className="capitalize font-bold">{currentUser?.username || "Pengguna"}</span>!
+            <p className="text-yellow-200 mt-2">
+              Selamat Datang, <span className="capitalize font-bold">{currentUser?.username || "Pengguna"}</span>! 🎅
             </p>
             <img src="/polines-logo.png" alt="Logo Politeknik Negeri Semarang" className="mx-auto mt-6 h-12" />
           </div>
-          <Button variant="outline" size="sm" onClick={logout} className="absolute top-4 right-4 bg-transparent hover:bg-white/10">
+          <Button variant="outline" size="sm" onClick={logout} className="absolute top-4 right-4 bg-transparent hover:bg-white/10 border-yellow-400/50 text-yellow-200 hover:text-white">
             <LogOut className="w-4 h-4 mr-2" /> Logout
           </Button>
         </header>

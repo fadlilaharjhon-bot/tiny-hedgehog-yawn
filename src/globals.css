@@ -99,3 +99,93 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Snowfall Animation */
+.snowfall-container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 9999;
+}
+
+.snowflake {
+  position: absolute;
+  top: -10px;
+  background-color: white;
+  border-radius: 50%;
+  opacity: 0.8;
+  pointer-events: none;
+  animation: snowfall linear infinite;
+}
+
+@keyframes snowfall {
+  0% {
+    transform: translateY(0) translateX(0);
+  }
+  100% {
+    transform: translateY(100vh) translateX(20px);
+  }
+}
+
+/* Generate random properties for each snowflake */
+.snowflake:nth-child(5n) {
+  width: 5px;
+  height: 5px;
+  animation-duration: 10s;
+  animation-delay: -5s;
+  left: 10%;
+}
+
+.snowflake:nth-child(5n + 1) {
+  width: 3px;
+  height: 3px;
+  animation-duration: 12s;
+  animation-delay: -2s;
+  left: 30%;
+}
+
+.snowflake:nth-child(5n + 2) {
+  width: 4px;
+  height: 4px;
+  animation-duration: 8s;
+  animation-delay: -1s;
+  left: 50%;
+}
+
+.snowflake:nth-child(5n + 3) {
+  width: 2px;
+  height: 2px;
+  animation-duration: 15s;
+  animation-delay: -7s;
+  left: 70%;
+  opacity: 0.6;
+}
+
+.snowflake:nth-child(5n + 4) {
+  width: 6px;
+  height: 6px;
+  animation-duration: 7s;
+  animation-delay: -3s;
+  left: 90%;
+}
+
+/* Add more variations for randomness */
+.snowflake:nth-child(7n) {
+  animation-delay: -4s;
+  left: 20%;
+}
+.snowflake:nth-child(7n + 1) {
+  animation-duration: 9s;
+  left: 40%;
+}
+.snowflake:nth-child(7n + 2) {
+  animation-delay: -6s;
+  left: 60%;
+}
+.snowflake:nth-child(7n + 3) {
+  animation-duration: 11s;
+  left: 80%;
+}
