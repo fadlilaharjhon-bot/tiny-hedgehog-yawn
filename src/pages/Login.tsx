@@ -15,9 +15,9 @@ const Login = () => {
 
   const handleLogin = () => {
     setError("");
-    const success = login(username, password);
-    if (!success) {
-      setError("Username atau password salah!");
+    const result = login(username, password);
+    if (!result.success) {
+      setError(result.message || "Login gagal!");
     }
   };
 
@@ -58,7 +58,7 @@ const Login = () => {
           </div>
           {error && <p className="text-sm text-red-500 text-center">{error}</p>}
            <p className="text-xs text-slate-400 text-center pt-2">
-            Hint: Coba `fadli`/`password123` atau `budi`/`password456`
+            Hint: Coba `fadli`/`password123` atau `kelompok7`/`kendalimodern`
           </p>
         </CardContent>
         <CardFooter className="flex flex-col gap-4">

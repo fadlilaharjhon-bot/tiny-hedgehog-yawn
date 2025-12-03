@@ -1,17 +1,31 @@
 import React, { createContext, useContext, useState, ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 
+// Tipe data untuk status akun
+type AccountStatus = "pending" | "approved";
+
+// Tipe data untuk akun pengguna
+interface UserAccount {
+  username: string;
+  password?: string;
+  status: AccountStatus;
+}
+
 // Tipe data untuk pengguna yang sedang login
 interface User {
   username: string;
+  isAdmin: boolean;
 }
 
 interface AuthContextType {
   isAuthenticated: boolean;
   currentUser: User | null;
-  login: (user: string, pass: string) => boolean;
+  login: (user: string, pass: string) => { success: boolean; message?: string };
   logout: () => void;
   signUp: (user: string, pass: string) => { success: boolean; message?: string };
+  pendingUsers: UserAccount[];
+  approveUser: (username: string) => void;
+  rejectUser: (username: string) => void;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -24,12 +38,12 @@ export const useAuth = () => {
   return context;
 };
 
-// Daftar pengguna yang diizinkan. Di aplikasi nyata, ini akan berasal dari database.
-// Mengubah dari const ke let agar bisa dimodifikasi
-let FAKE_USERS = [
-  { username: "fadli", password: "password123" },
-  { username: "budi", password: "password456" },
-  { username: "admin", password: "password" },
+// Data pengguna disimpan di state agar bisa diupdate
+const initialUsers: UserAccount[] = [
+  { username: "fadli", password: "password123", status: "approved" },
+  { username: "budi", password: "password456", status: "approved" },
+  { username: "kelompok7", password: "kendalimodern", status: "approved" }, // Admin user
+  { username: "calonuser", password: "password", status: "pending" }, // Contoh pengguna yang menunggu persetujuan
 ];
 
 interface AuthProviderProps {
@@ -39,21 +53,36 @@ interface AuthProviderProps {
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [users, setUsers] = useState<UserAccount[]>(initialUsers);
   const navigate = useNavigate();
 
+  const pendingUsers = users.filter((user) => user.status === "pending");
+
   const login = (username: string, pass: string) => {
-    const foundUser = FAKE_USERS.find(
-      (user) => user.username === username && user.password === pass
+    const foundUser = users.find(
+      (user) => user.username === username && user.password === pass,
     );
 
-    if (foundUser) {
-      setIsAuthenticated(true);
-      setCurrentUser({ username: foundUser.username });
-      navigate("/home");
-      return true;
+    if (!foundUser) {
+      return { success: false, message: "Username atau password salah!" };
     }
-    
-    return false;
+
+    if (foundUser.status === "pending") {
+      return {
+        success: false,
+        message: "Akun Anda sedang menunggu persetujuan admin.",
+      };
+    }
+
+    if (foundUser.status === "approved") {
+      const isAdmin = foundUser.username === "kelompok7";
+      setIsAuthenticated(true);
+      setCurrentUser({ username: foundUser.username, isAdmin });
+      navigate("/home");
+      return { success: true };
+    }
+
+    return { success: false, message: "Status akun tidak diketahui." };
   };
 
   const logout = () => {
@@ -63,21 +92,52 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   const signUp = (username: string, pass: string) => {
-    const userExists = FAKE_USERS.some((user) => user.username === username);
+    const userExists = users.some((user) => user.username === username);
     if (userExists) {
       return { success: false, message: "Username sudah digunakan." };
     }
 
-    FAKE_USERS.push({ username, password: pass });
-    
-    // Otomatis login setelah berhasil mendaftar
-    login(username, pass);
+    const newUser: UserAccount = {
+      username,
+      password: pass,
+      status: "pending",
+    };
+    setUsers((prevUsers) => [...prevUsers, newUser]);
 
-    return { success: true };
+    return {
+      success: true,
+      message:
+        "Pendaftaran berhasil! Akun Anda akan segera ditinjau oleh admin.",
+    };
+  };
+
+  const approveUser = (username: string) => {
+    setUsers((prevUsers) =>
+      prevUsers.map((user) =>
+        user.username === username ? { ...user, status: "approved" } : user,
+      ),
+    );
+  };
+
+  const rejectUser = (username: string) => {
+    setUsers((prevUsers) =>
+      prevUsers.filter((user) => user.username !== username),
+    );
   };
 
   return (
-    <AuthContext.Provider value={{ isAuthenticated, currentUser, login, logout, signUp }}>
+    <AuthContext.Provider
+      value={{
+        isAuthenticated,
+        currentUser,
+        login,
+        logout,
+        signUp,
+        pendingUsers,
+        approveUser,
+        rejectUser,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

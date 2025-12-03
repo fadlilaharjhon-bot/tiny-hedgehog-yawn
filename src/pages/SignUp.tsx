@@ -12,10 +12,12 @@ const SignUp = () => {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
   const { signUp } = useAuth();
 
   const handleSignUp = () => {
     setError("");
+    setSuccessMessage("");
     if (password !== confirmPassword) {
       setError("Password tidak cocok!");
       return;
@@ -28,8 +30,12 @@ const SignUp = () => {
     const result = signUp(username, password);
     if (!result.success) {
       setError(result.message || "Terjadi kesalahan saat mendaftar.");
+    } else {
+      setSuccessMessage(result.message || "Pendaftaran berhasil!");
+      setUsername("");
+      setPassword("");
+      setConfirmPassword("");
     }
-    // Jika berhasil, AuthContext akan otomatis me-redirect ke dashboard
   };
 
   return (
@@ -45,45 +51,53 @@ const SignUp = () => {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="username">Username</Label>
-            <Input
-              id="username"
-              type="text"
-              placeholder="Pilih username unik"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              className="bg-slate-700 border-slate-600 placeholder:text-slate-500"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="password">Password</Label>
-            <Input
-              id="password"
-              type="password"
-              placeholder="Minimal 6 karakter"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="bg-slate-700 border-slate-600 placeholder:text-slate-500"
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="confirm-password">Konfirmasi Password</Label>
-            <Input
-              id="confirm-password"
-              type="password"
-              placeholder="Ulangi password Anda"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              className="bg-slate-700 border-slate-600 placeholder:text-slate-500"
-            />
-          </div>
+          {successMessage ? (
+            <p className="text-sm text-green-400 text-center p-4 bg-green-900/50 rounded-md">{successMessage}</p>
+          ) : (
+            <>
+              <div className="space-y-2">
+                <Label htmlFor="username">Username</Label>
+                <Input
+                  id="username"
+                  type="text"
+                  placeholder="Pilih username unik"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  className="bg-slate-700 border-slate-600 placeholder:text-slate-500"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="password">Password</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  placeholder="Minimal 6 karakter"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="bg-slate-700 border-slate-600 placeholder:text-slate-500"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="confirm-password">Konfirmasi Password</Label>
+                <Input
+                  id="confirm-password"
+                  type="password"
+                  placeholder="Ulangi password Anda"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  className="bg-slate-700 border-slate-600 placeholder:text-slate-500"
+                />
+              </div>
+            </>
+          )}
           {error && <p className="text-sm text-red-500 text-center">{error}</p>}
         </CardContent>
         <CardFooter className="flex flex-col gap-4">
-          <Button onClick={handleSignUp} className="w-full bg-blue-600 hover:bg-blue-700">
-            Daftar
-          </Button>
+          {!successMessage && (
+            <Button onClick={handleSignUp} className="w-full bg-blue-600 hover:bg-blue-700">
+              Daftar
+            </Button>
+          )}
           <p className="text-xs text-slate-400 text-center">
             Sudah punya akun?{" "}
             <Link to="/login" className="text-blue-400 hover:underline">

@@ -11,9 +11,11 @@ import Home from "./pages/Home";
 import Control from "./pages/Control";
 import Logs from "./pages/Logs";
 import Tools from "./pages/Tools";
+import Admin from "./pages/Admin";
 import { MqttProvider } from "./components/MqttProvider";
 import { AuthProvider } from "./context/AuthContext";
 import AuthenticatedLayout from "./components/AuthenticatedLayout";
+import AdminRoute from "./components/AdminRoute";
 
 const queryClient = new QueryClient();
 const BROKER_URL = "ws://broker.hivemq.com:8000/mqtt";
@@ -37,6 +39,10 @@ const App = () => (
                 <Route path="/control" element={<Control />} />
                 <Route path="/logs" element={<Logs />} />
                 <Route path="/tools" element={<Tools />} />
+                {/* Rute Admin yang dilindungi */}
+                <Route element={<AdminRoute />}>
+                  <Route path="/admin" element={<Admin />} />
+                </Route>
               </Route>
 
               <Route path="*" element={<NotFound />} />
