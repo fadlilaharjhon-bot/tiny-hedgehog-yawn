@@ -13,8 +13,7 @@ import Logs from "./pages/Logs";
 import Tools from "./pages/Tools";
 import { MqttProvider } from "./components/MqttProvider";
 import { AuthProvider } from "./context/AuthContext";
-import { MqttStateProvider } from "./context/MqttStateContext";
-import ProtectedRoute from "./components/ProtectedRoute";
+import AuthenticatedLayout from "./components/AuthenticatedLayout";
 
 const queryClient = new QueryClient();
 const BROKER_URL = "ws://broker.hivemq.com:8000/mqtt";
@@ -32,30 +31,13 @@ const App = () => (
               <Route path="/login" element={<Login />} />
               <Route path="/signup" element={<SignUp />} />
               
-              <Route
-                path="/home"
-                element={<ProtectedRoute><Home /></ProtectedRoute>}
-              />
-              <Route
-                path="/control"
-                element={
-                  <ProtectedRoute>
-                    <MqttStateProvider><Control /></MqttStateProvider>
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/logs"
-                element={
-                  <ProtectedRoute>
-                    <MqttStateProvider><Logs /></MqttStateProvider>
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/tools"
-                element={<ProtectedRoute><Tools /></ProtectedRoute>}
-              />
+              {/* Semua rute yang dilindungi sekarang menggunakan AuthenticatedLayout */}
+              <Route element={<AuthenticatedLayout />}>
+                <Route path="/home" element={<Home />} />
+                <Route path="/control" element={<Control />} />
+                <Route path="/logs" element={<Logs />} />
+                <Route path="/tools" element={<Tools />} />
+              </Route>
 
               <Route path="*" element={<NotFound />} />
             </Routes>
