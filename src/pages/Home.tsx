@@ -28,7 +28,7 @@ const Home = () => {
             <p className="text-slate-400 mt-2">
               Selamat Datang, <span className="capitalize font-bold">{currentUser?.username || "Pengguna"}</span>!
             </p>
-            <img src="/polines-logo.png" alt="Logo Politeknik Negeri Semarang" className="mx-auto mt-6 h-12 filter brightness-0 invert" />
+            <img src="/polines-logo.png" alt="Logo Politeknik Negeri Semarang" className="mx-auto mt-6 h-12" />
           </div>
           <Button variant="outline" size="sm" onClick={logout} className="absolute top-4 right-4 bg-transparent hover:bg-white/10">
             <LogOut className="w-4 h-4 mr-2" /> Logout
