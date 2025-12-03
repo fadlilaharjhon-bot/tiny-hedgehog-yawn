@@ -78,18 +78,10 @@ void handleSerialCommand(String command) {
     mode = doc["mode"].as<String>();
   }
 
-  // (DIUBAH) Perintah untuk lampu teras sekarang diterima di semua mode
-  if (doc.containsKey("led")) {
-    String led_cmd = doc["led"].as<String>();
-    // Perintah "toggle" hanya berfungsi di mode manual (dari tombol di web)
-    if (led_cmd == "toggle" && mode == "manual") {
+  // Perintah untuk toggle lampu teras (hanya dalam mode manual)
+  if (doc.containsKey("led") && mode == "manual") {
+    if (doc["led"].as<String>() == "toggle") {
       led_status = (led_status == "ON") ? "OFF" : "ON";
-    } 
-    // Perintah "ON" / "OFF" diterima di mode apa pun (dari logika auto di web)
-    else if (led_cmd == "ON") {
-      led_status = "ON";
-    } else if (led_cmd == "OFF") {
-      led_status = "OFF";
     }
   }
 
@@ -135,25 +127,30 @@ void loop() {
     handleSerialCommand(command);
   }
 
-  // 2. Tampilkan status pin push button di Serial Monitor
-  // Serial.print("Status Tombol -> PB1: ");
-  // Serial.print(digitalRead(PB_PIN_1) == HIGH ? "HIGH" : "LOW ");
-  // Serial.print(" | PB2: ");
-  // Serial.println(digitalRead(PB_PIN_2) == HIGH ? "HIGH" : "LOW ");
-
-  // 3. Logika tombol fisik untuk lampu kamar selalu berjalan
+  // 2. Logika tombol fisik untuk lampu kamar selalu berjalan
   handleButton(&pb1_state, &last_pb1_state, PB_PIN_1, &lamp1_status, &last_debounce_time1);
   handleButton(&pb2_state, &last_pb2_state, PB_PIN_2, &lamp2_status, &last_debounce_time2);
 
-  // 4. (DIHAPUS) Logika auto untuk lampu teras berdasarkan LDR dihapus dari sini.
-  // Keputusan sekarang sepenuhnya dibuat oleh aplikasi web dan dikirim sebagai perintah.
+  // 3. (DIKEMBALIKAN) Logika untuk lampu teras sekarang bergantung pada mode
+  if (mode == "auto") {
+    // Di mode auto, LDR adalah satu-satunya penentu.
+    // Ini secara efektif mensimulasikan timer "malam/siang".
+    int ldrValue = analogRead(LDR_PIN);
+    // Nilai LDR tinggi saat gelap, rendah saat terang.
+    if (ldrValue > ldr_threshold) {
+      led_status = "ON"; // Kondisi gelap, nyalakan lampu
+    } else {
+      led_status = "OFF"; // Kondisi terang, matikan lampu
+    }
+  }
+  // Jika mode == "manual", status lampu teras hanya diubah oleh perintah dari Node-RED
 
-  // 5. Update semua output fisik (LED/Relay)
+  // 4. Update semua output fisik (LED/Relay)
   digitalWrite(LED_PIN, (led_status == "ON") ? HIGH : LOW);
   digitalWrite(LAMP1_PIN, lamp1_status ? HIGH : LOW);
   digitalWrite(LAMP2_PIN, lamp2_status ? HIGH : LOW);
 
-  // 6. Kirim status JSON ke Node-RED secara berkala
+  // 5. Kirim status JSON ke Node-RED secara berkala
   unsigned long currentMillis = millis();
   if (currentMillis - last_send_time >= send_interval) {
     last_send_time = currentMillis;
