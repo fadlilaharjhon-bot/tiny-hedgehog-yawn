@@ -1,15 +1,6 @@
-import { useState, useEffect, useRef } from "react";
-import LightIntensityGauge from "@/components/LightIntensityGauge";
-import ControlPanel from "@/components/ControlPanel";
-import IntensityChart from "@/components/IntensityChart";
-import WelcomeHeader from "@/components/WelcomeHeader";
-import WebcamPanel from "@/components/WebcamPanel";
-import LightStatusPanel from "@/components/LightStatusPanel";
-import HistoryLog, { HistoryEntry } from "@/components/HistoryLog";
+import React, { createContext, useContext, useState, useEffect, useRef, ReactNode } from "react";
 import { useMqtt } from "@/components/MqttProvider";
-import { useAuth } from "@/context/AuthContext";
-import { Button } from "@/components/ui/button";
-import { LogOut } from "lucide-react";
+import { HistoryEntry } from "@/components/HistoryLog";
 import { showSuccess } from "@/utils/toast";
 
 const MAX_CHART_POINTS = 30;
@@ -18,10 +9,33 @@ const TOPIC_LDR_COMMAND = "POLINES/PADLI/IL";
 const TOPIC_LDR_THRESHOLD_SET = "POLINES/BADLI/IL";
 const TOPIC_ROOM_COMMAND = "POLINES/LAMPU_RUANG/COMMAND";
 
-const Dashboard = () => {
-  const { client, connectionStatus, publish } = useMqtt();
-  const { logout, currentUser } = useAuth();
+interface MqttState {
+  lightIntensity: number;
+  terraceThreshold: number;
+  terraceMode: "auto" | "manual";
+  chartData: { time: string; intensity: number }[];
+  history: HistoryEntry[];
+  lightStatus: { teras: boolean; kamar1: boolean; kamar2: boolean };
+  connectionStatus: string;
+  handleSetTerraceMode: (newMode: "auto" | "manual") => void;
+  handleToggleTerraceLamp: () => void;
+  handleSetThreshold: (newThreshold: number) => void;
+  handleToggleRoomLamp: (lamp: "kamar1" | "kamar2") => void;
+  handleSetDelayTimer: (lamp: "kamar1" | "kamar2", delayMinutes: number) => void;
+}
 
+const MqttStateContext = createContext<MqttState | null>(null);
+
+export const useMqttState = () => {
+  const context = useContext(MqttStateContext);
+  if (!context) {
+    throw new Error("useMqttState must be used within an MqttStateProvider");
+  }
+  return context;
+};
+
+export const MqttStateProvider = ({ children }: { children: ReactNode }) => {
+  const { client, connectionStatus, publish } = useMqtt();
   const [lightIntensity, setLightIntensity] = useState(0);
   const [terraceThreshold, setTerraceThreshold] = useState(40);
   const [terraceMode, setTerraceMode] = useState<"auto" | "manual">("auto");
@@ -34,7 +48,7 @@ const Dashboard = () => {
   const isConnected = connectionStatus === "Connected";
 
   const addHistory = (message: string) => {
-    setHistory((prev) => [...prev, { timestamp: new Date(), message }]);
+    setHistory((prev) => [...prev, { timestamp: new Date(), message }].slice(-50)); // Limit history size
   };
 
   useEffect(() => {
@@ -54,7 +68,6 @@ const Dashboard = () => {
             setLightStatus(prev => ({ ...prev, teras: data.led === "ON" }));
           }
           
-          // Update status lampu kamar dari laporan hardware
           setLightStatus(prev => ({
             ...prev,
             kamar1: data.lamp1_status ?? prev.kamar1,
@@ -151,56 +164,24 @@ const Dashboard = () => {
     }, delayMinutes * 60 * 1000);
   };
 
+  const value = {
+    lightIntensity,
+    terraceThreshold,
+    terraceMode,
+    chartData,
+    history,
+    lightStatus,
+    connectionStatus,
+    handleSetTerraceMode,
+    handleToggleTerraceLamp,
+    handleSetThreshold,
+    handleToggleRoomLamp,
+    handleSetDelayTimer,
+  };
+
   return (
-    <div className="min-h-screen w-full bg-gradient-to-br from-indigo-900 via-purple-900 to-pink-900 text-white p-4 md:p-8">
-      <div className="container mx-auto">
-        <div className="flex justify-between items-center mb-4">
-          <div className="text-sm text-slate-300">
-            MQTT: <span className={`font-bold ${isConnected ? 'text-green-400' : 'text-red-400'}`}>{connectionStatus}</span>
-          </div>
-          <Button variant="destructive" size="sm" onClick={logout}>
-            <LogOut className="w-4 h-4 mr-2" /> Logout
-          </Button>
-        </div>
-        
-        {currentUser && <WelcomeHeader username={currentUser.username} />}
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-1 flex flex-col gap-6">
-            <LightStatusPanel 
-              status={lightStatus} 
-              onToggleKamar1={() => handleToggleRoomLamp("kamar1")}
-              onToggleKamar2={() => handleToggleRoomLamp("kamar2")}
-            />
-            <LightIntensityGauge intensity={lightIntensity} />
-          </div>
-
-          <div className="lg:col-span-2">
-            <WebcamPanel onSetDelayTimer={handleSetDelayTimer} />
-          </div>
-
-          <div className="lg:col-span-1">
-            <ControlPanel
-              mode={terraceMode}
-              setMode={handleSetTerraceMode}
-              toggleTerraceLamp={handleToggleTerraceLamp}
-              threshold={terraceThreshold}
-              setThreshold={handleSetThreshold}
-              disabled={!isConnected}
-            />
-          </div>
-          
-          <div className="lg:col-span-2">
-             <HistoryLog entries={history} />
-          </div>
-
-          <div className="lg:col-span-3">
-            <IntensityChart data={chartData} />
-          </div>
-        </div>
-      </div>
-    </div>
+    <MqttStateContext.Provider value={value}>
+      {children}
+    </MqttStateContext.Provider>
   );
 };
-
-export default Dashboard;

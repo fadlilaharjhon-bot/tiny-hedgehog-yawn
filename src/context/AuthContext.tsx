@@ -49,7 +49,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     if (foundUser) {
       setIsAuthenticated(true);
       setCurrentUser({ username: foundUser.username });
-      navigate("/dashboard");
+      navigate("/home");
       return true;
     }
     
