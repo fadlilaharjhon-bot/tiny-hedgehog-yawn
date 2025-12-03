@@ -2,9 +2,9 @@
     {
         "id": "a1b2c3d4e5f6g7h8",
         "type": "tab",
-        "label": "Kontrol Lampu Terintegrasi (LDR + Gestur)",
+        "label": "Kontrol Lampu Terintegrasi (LDR + Gestur + RTC)",
         "disabled": false,
-        "info": "Flow ini mengintegrasikan kontrol lampu dari ESP8266 (Serial), Dashboard React (MQTT), dan Kontrol Gestur Python (HTTP)."
+        "info": "Flow ini mengintegrasikan kontrol lampu dari ESP8266 (Serial), Dashboard React (MQTT), dan Kontrol Gestur Python (HTTP), serta mengirimkan data waktu (RTC) ke ESP8266."
     },
     {
         "id": "serial-in-esp",
@@ -126,6 +126,44 @@
         "wires": [
             [
                 "serial-out-esp"
+            ]
+        ]
+    },
+    {
+        "id": "inject-time",
+        "type": "inject",
+        "z": "a1b2c3d4e5f6g7h8",
+        "name": "Inject Time Every Minute",
+        "props": [],
+        "repeat": "60",
+        "crontab": "",
+        "once": true,
+        "onceDelay": "5",
+        "topic": "",
+        "x": 170,
+        "y": 340,
+        "wires": [
+            [
+                "get-time-function"
+            ]
+        ]
+    },
+    {
+        "id": "get-time-function",
+        "type": "function",
+        "z": "a1b2c3d4e5f6g7h8",
+        "name": "Format Time for ESP",
+        "func": "const now = new Date();\nconst hour = now.getHours();\nconst minute = now.getMinutes();\n\n// Buat payload JSON untuk dikirim ke ESP\nmsg.payload = {\n    time: {\n        hour: hour,\n        minute: minute\n    }\n};\n\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 400,
+        "y": 340,
+        "wires": [
+            [
+                "command-aggregator"
             ]
         ]
     },

@@ -1,4 +1,5 @@
 import { Sun, Moon } from "lucide-react";
+import RealTimeClock from './Clock'; // Impor komponen jam
 
 interface WelcomeHeaderProps {
   username: string;
@@ -52,6 +53,7 @@ const WelcomeHeader = ({ username }: WelcomeHeaderProps) => {
         </div>
         <h1 className="text-4xl font-bold text-white capitalize">{username}!</h1>
         <p className="text-slate-300 mt-1">Ini adalah ringkasan status lampu teras Anda.</p>
+        <RealTimeClock /> {/* Tambahkan komponen jam di sini */}
       </div>
     </div>
   );
