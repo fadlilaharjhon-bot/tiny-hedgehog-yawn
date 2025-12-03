@@ -5,13 +5,10 @@ const int LDR_PIN = A0;      // Pin sensor LDR
 const int LED_PIN = D1;      // Pin LED untuk lampu teras
 const int LAMP1_PIN = D5;    // Pin relay/LED untuk lampu kamar 1
 const int LAMP2_PIN = D6;    // Pin relay/LED untuk lampu kamar 2
-const int PB_PIN_1 = D2;     // Pin push button untuk lampu kamar 1
-const int PB_PIN_2 = D7;     // <<< PIN DIUBAH DARI D3 KE D7
 
 // === PENGATURAN PROGRAM ===
 unsigned long send_interval = 1000; // Kirim status setiap 1 detik
 unsigned long last_send_time = 0;
-const long debounce_delay = 50;     // Waktu tunda debounce dalam milidetik
 
 // === VARIABEL STATUS GLOBAL ===
 String led_status = "OFF";          // Status lampu teras (ON/OFF)
@@ -22,20 +19,12 @@ int ldr_threshold = 400;            // Nilai ambang batas LDR (0-1023)
 int current_hour = -1;              // Jam saat ini (diterima dari Node-RED)
 int current_minute = -1;            // Menit saat ini (diterima dari Node-RED)
 
-// === Variabel untuk Debounce Tombol Fisik ===
-int pb1_state, last_pb1_state = HIGH;
-unsigned long last_debounce_time1 = 0;
-int pb2_state, last_pb2_state = HIGH;
-unsigned long last_debounce_time2 = 0;
-
 void setup() {
   Serial.begin(9600);
   pinMode(LDR_PIN, INPUT);
   pinMode(LED_PIN, OUTPUT);
   pinMode(LAMP1_PIN, OUTPUT);
   pinMode(LAMP2_PIN, OUTPUT);
-  pinMode(PB_PIN_1, INPUT_PULLUP);
-  pinMode(PB_PIN_2, INPUT_PULLUP);
 
   digitalWrite(LED_PIN, LOW);
   digitalWrite(LAMP1_PIN, LOW);
@@ -78,26 +67,11 @@ void handleSerialCommand(String command) {
   }
 }
 
-void handleButton(int* button_state, int* last_button_state, int pin, bool* lamp_status, unsigned long* last_debounce_time) {
-  int reading = digitalRead(pin);
-  if (reading != *last_button_state) *last_debounce_time = millis();
-  if ((millis() - *last_debounce_time) > debounce_delay) {
-    if (reading != *button_state) {
-      *button_state = reading;
-      if (*button_state == LOW) *lamp_status = !(*lamp_status);
-    }
-  }
-  *last_button_state = reading;
-}
-
 void loop() {
   if (Serial.available() > 0) {
     String command = Serial.readStringUntil('\n');
     handleSerialCommand(command);
   }
-
-  handleButton(&pb1_state, &last_pb1_state, PB_PIN_1, &lamp1_status, &last_debounce_time1);
-  handleButton(&pb2_state, &last_pb2_state, PB_PIN_2, &lamp2_status, &last_debounce_time2);
 
   if (mode == "auto" && current_hour != -1) {
     bool is_night_time = (current_hour >= 18 || current_hour < 6);

@@ -226,8 +226,8 @@ const WebcamPanel = ({ onSetDelayTimer }: WebcamPanelProps) => {
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="relative aspect-video w-full bg-slate-900 rounded-md flex items-center justify-center overflow-hidden">
-          <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover transform scaleX(-1)"></video>
-          <canvas ref={canvasRef} className="absolute top-0 left-0 w-full h-full transform scaleX(-1)"></canvas>
+          <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover"></video>
+          <canvas ref={canvasRef} className="absolute top-0 left-0 w-full h-full"></canvas>
           <div className="absolute top-2 left-2 bg-black/50 p-2 rounded-md flex items-center gap-2 text-base">
             <Hand className="w-5 h-5 text-sky-400" />
             <p className="font-bold">{gestureOutput}</p>
