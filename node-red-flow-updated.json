@@ -2,18 +2,676 @@
     {
         "id": "a1b2c3d4e5f6g7h8",
         "type": "tab",
-        "label": "Kontrol Lampu Terintegrasi (LDR + Gestur + RTC)",
+        "label": "Dashboard Kendali Modern (RTC Integrated)",
         "disabled": false,
-        "info": "Flow ini mengintegrasikan kontrol lampu dari ESP8266 (Serial), Dashboard React (MQTT), dan Kontrol Gestur Python (HTTP), serta mengirimkan data waktu (RTC) ke ESP8266."
+        "info": "Dashboard lengkap untuk memonitor dan mengontrol sistem lampu teras dan kamar secara real-time, terintegrasi dengan komunikasi serial dan pengiriman waktu (RTC) ke ESP8266."
+    },
+    {
+        "id": "mqtt-in-status",
+        "type": "mqtt in",
+        "z": "a1b2c3d4e5f6g7h8",
+        "name": "Status dari Bridge (MQTT)",
+        "topic": "POLINES/FADLI/IL",
+        "qos": "2",
+        "datatype": "json",
+        "broker": "mqtt-broker-config",
+        "nl": false,
+        "rap": true,
+        "rh": 0,
+        "inputs": 0,
+        "x": 180,
+        "y": 160,
+        "wires": [
+            [
+                "split-data-function"
+            ]
+        ]
+    },
+    {
+        "id": "split-data-function",
+        "type": "function",
+        "z": "a1b2c3d4e5f6g7h8",
+        "name": "Pisah & Simpan Data",
+        "func": "// Simpan semua data ke flow context agar state tidak hilang\nflow.set('latestStatus', msg.payload);\n\n// Siapkan pesan untuk setiap output\nlet intensityMsg = { payload: msg.payload.intensity };\nlet chartMsg = { payload: msg.payload.intensity };\nlet statusTerasMsg = { payload: msg.payload.led === 'ON' ? 'NYALA' : 'MATI' };\nlet statusKamar1Msg = { payload: msg.payload.lamp1_status ? 'NYALA' : 'MATI' };\nlet statusKamar2Msg = { payload: msg.payload.lamp2_status ? 'NYALA' : 'MATI' };\nlet modeMsg = { payload: msg.payload.mode ? msg.payload.mode.toUpperCase() : 'N/A' };\n\n// Kirim ke masing-masing UI node\nreturn [intensityMsg, chartMsg, statusTerasMsg, statusKamar1Msg, statusKamar2Msg, modeMsg];",
+        "outputs": 6,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 410,
+        "y": 160,
+        "wires": [
+            [
+                "ui-gauge-intensity"
+            ],
+            [
+                "ui-chart-intensity"
+            ],
+            [
+                "ui-text-teras"
+            ],
+            [
+                "ui-text-kamar1"
+            ],
+            [
+                "ui-text-kamar2"
+            ],
+            [
+                "ui-text-mode"
+            ]
+        ]
+    },
+    {
+        "id": "ui-gauge-intensity",
+        "type": "ui_gauge",
+        "z": "a1b2c3d4e5f6g7h8",
+        "name": "Intensitas Cahaya",
+        "group": "group-status",
+        "order": 1,
+        "width": 0,
+        "height": 0,
+        "gtype": "gage",
+        "title": "Intensitas Cahaya",
+        "label": "%",
+        "format": "{{value}}",
+        "min": 0,
+        "max": "100",
+        "colors": [
+            "#b30000",
+            "#ffc400",
+            "#00ff00"
+        ],
+        "seg1": "30",
+        "seg2": "70",
+        "className": "",
+        "x": 670,
+        "y": 100,
+        "wires": []
+    },
+    {
+        "id": "ui-chart-intensity",
+        "type": "ui_chart",
+        "z": "a1b2c3d4e5f6g7h8",
+        "name": "Grafik Intensitas",
+        "group": "group-grafik",
+        "order": 1,
+        "width": 0,
+        "height": 0,
+        "label": "Grafik Intensitas (%)",
+        "chartType": "line",
+        "legend": "false",
+        "xformat": "HH:mm:ss",
+        "interpolate": "linear",
+        "nodata": "",
+        "dot": false,
+        "ymin": "0",
+        "ymax": "100",
+        "removeOlder": "30",
+        "removeOlderPoints": "",
+        "removeOlderUnit": "3600",
+        "cutout": 0,
+        "useOneColor": false,
+        "useUTC": false,
+        "colors": [
+            "#1f77b4",
+            "#aec7e8",
+            "#ff7f0e",
+            "#2ca02c",
+            "#98df8a",
+            "#d62728",
+            "#ff9896",
+            "#9467bd"
+        ],
+        "outputs": 1,
+        "useDifferentColor": false,
+        "className": "",
+        "x": 660,
+        "y": 140,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "ui-text-teras",
+        "type": "ui_text",
+        "z": "a1b2c3d4e5f6g7h8",
+        "group": "group-status",
+        "order": 2,
+        "width": 0,
+        "height": 0,
+        "name": "",
+        "label": "Lampu Teras",
+        "format": "{{msg.payload}}",
+        "layout": "row-spread",
+        "className": "",
+        "x": 650,
+        "y": 180,
+        "wires": []
+    },
+    {
+        "id": "ui-text-kamar1",
+        "type": "ui_text",
+        "z": "a1b2c3d4e5f6g7h8",
+        "group": "group-status",
+        "order": 3,
+        "width": 0,
+        "height": 0,
+        "name": "",
+        "label": "Lampu Kamar 1",
+        "format": "{{msg.payload}}",
+        "layout": "row-spread",
+        "className": "",
+        "x": 660,
+        "y": 220,
+        "wires": []
+    },
+    {
+        "id": "ui-text-kamar2",
+        "type": "ui_text",
+        "z": "a1b2c3d4e5f6g7h8",
+        "group": "group-status",
+        "order": 4,
+        "width": 0,
+        "height": 0,
+        "name": "",
+        "label": "Lampu Kamar 2",
+        "format": "{{msg.payload}}",
+        "layout": "row-spread",
+        "className": "",
+        "x": 660,
+        "y": 260,
+        "wires": []
+    },
+    {
+        "id": "ui-text-mode",
+        "type": "ui_text",
+        "z": "a1b2c3d4e5f6g7h8",
+        "group": "group-status",
+        "order": 5,
+        "width": 0,
+        "height": 0,
+        "name": "",
+        "label": "Mode Teras",
+        "format": "{{msg.payload}}",
+        "layout": "row-spread",
+        "className": "",
+        "x": 650,
+        "y": 300,
+        "wires": []
+    },
+    {
+        "id": "ui-switch-teras",
+        "type": "ui_switch",
+        "z": "a1b2c3d4e5f6g7h8",
+        "name": "Lampu Teras",
+        "label": "Lampu Teras (Manual)",
+        "tooltip": "",
+        "group": "group-kontrol",
+        "order": 3,
+        "width": 0,
+        "height": 0,
+        "passthru": false,
+        "decouple": "true",
+        "topic": "lampuTeras",
+        "topicType": "str",
+        "style": "",
+        "onvalue": "toggle",
+        "onvalueType": "str",
+        "onicon": "",
+        "oncolor": "",
+        "offvalue": "toggle",
+        "offvalueType": "str",
+        "officon": "",
+        "offcolor": "",
+        "animate": false,
+        "className": "",
+        "x": 140,
+        "y": 400,
+        "wires": [
+            [
+                "format-command-teras",
+                "log-teras-manual"
+            ]
+        ]
+    },
+    {
+        "id": "format-command-teras",
+        "type": "function",
+        "z": "a1b2c3d4e5f6g7h8",
+        "name": "Format: {led: 'toggle'}",
+        "func": "msg.payload = { led: 'toggle' };\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 380,
+        "y": 400,
+        "wires": [
+            [
+                "command-aggregator"
+            ]
+        ]
+    },
+    {
+        "id": "ui-switch-kamar1",
+        "type": "ui_switch",
+        "z": "a1b2c3d4e5f6g7h8",
+        "name": "Lampu Kamar 1",
+        "label": "Lampu Kamar 1",
+        "tooltip": "",
+        "group": "group-kontrol",
+        "order": 4,
+        "width": 0,
+        "height": 0,
+        "passthru": false,
+        "decouple": "true",
+        "topic": "lampuKamar1",
+        "topicType": "str",
+        "style": "",
+        "onvalue": "toggle",
+        "onvalueType": "str",
+        "onicon": "",
+        "oncolor": "",
+        "offvalue": "toggle",
+        "offvalueType": "str",
+        "officon": "",
+        "offcolor": "",
+        "animate": false,
+        "className": "",
+        "x": 140,
+        "y": 500,
+        "wires": [
+            [
+                "format-command-kamar1",
+                "log-kamar1-manual"
+            ]
+        ]
+    },
+    {
+        "id": "format-command-kamar1",
+        "type": "function",
+        "z": "a1b2c3d4e5f6g7h8",
+        "name": "Format: {toggle_lamp1: true}",
+        "func": "msg.payload = { toggle_lamp1: true };\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 400,
+        "y": 500,
+        "wires": [
+            [
+                "command-aggregator"
+            ]
+        ]
+    },
+    {
+        "id": "ui-switch-kamar2",
+        "type": "ui_switch",
+        "z": "a1b2c3d4e5f6g7h8",
+        "name": "Lampu Kamar 2",
+        "label": "Lampu Kamar 2",
+        "tooltip": "",
+        "group": "group-kontrol",
+        "order": 5,
+        "width": 0,
+        "height": 0,
+        "passthru": false,
+        "decouple": "true",
+        "topic": "lampuKamar2",
+        "topicType": "str",
+        "style": "",
+        "onvalue": "toggle",
+        "onvalueType": "str",
+        "onicon": "",
+        "oncolor": "",
+        "offvalue": "toggle",
+        "offvalueType": "str",
+        "officon": "",
+        "offcolor": "",
+        "animate": false,
+        "className": "",
+        "x": 140,
+        "y": 560,
+        "wires": [
+            [
+                "format-command-kamar2",
+                "log-kamar2-manual"
+            ]
+        ]
+    },
+    {
+        "id": "format-command-kamar2",
+        "type": "function",
+        "z": "a1b2c3d4e5f6g7h8",
+        "name": "Format: {toggle_lamp2: true}",
+        "func": "msg.payload = { toggle_lamp2: true };\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 400,
+        "y": 560,
+        "wires": [
+            [
+                "command-aggregator"
+            ]
+        ]
+    },
+    {
+        "id": "ui-button-auto",
+        "type": "ui_button",
+        "z": "a1b2c3d4e5f6g7h8",
+        "name": "Mode Auto",
+        "group": "group-kontrol",
+        "order": 1,
+        "width": 3,
+        "height": 1,
+        "passthru": false,
+        "label": "Auto",
+        "tooltip": "",
+        "color": "",
+        "bgcolor": "",
+        "className": "",
+        "icon": "",
+        "payload": "auto",
+        "payloadType": "str",
+        "topic": "mode",
+        "topicType": "str",
+        "x": 130,
+        "y": 640,
+        "wires": [
+            [
+                "format-command-mode",
+                "log-mode-auto"
+            ]
+        ]
+    },
+    {
+        "id": "ui-button-manual",
+        "type": "ui_button",
+        "z": "a1b2c3d4e5f6g7h8",
+        "name": "Mode Manual",
+        "group": "group-kontrol",
+        "order": 2,
+        "width": 3,
+        "height": 1,
+        "passthru": false,
+        "label": "Manual",
+        "tooltip": "",
+        "color": "",
+        "bgcolor": "",
+        "className": "",
+        "icon": "",
+        "payload": "manual",
+        "payloadType": "str",
+        "topic": "mode",
+        "topicType": "str",
+        "x": 140,
+        "y": 700,
+        "wires": [
+            [
+                "format-command-mode",
+                "log-mode-manual"
+            ]
+        ]
+    },
+    {
+        "id": "format-command-mode",
+        "type": "function",
+        "z": "a1b2c3d4e5f6g7h8",
+        "name": "Format: {mode: '...'}",
+        "func": "msg.payload = { mode: msg.payload };\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 380,
+        "y": 670,
+        "wires": [
+            [
+                "command-aggregator"
+            ]
+        ]
+    },
+    {
+        "id": "ui-slider-threshold",
+        "type": "ui_slider",
+        "z": "a1b2c3d4e5f6g7h8",
+        "name": "Threshold LDR",
+        "label": "Ambang Batas LDR (%)",
+        "tooltip": "",
+        "group": "group-kontrol",
+        "order": 6,
+        "width": 0,
+        "height": 0,
+        "passthru": false,
+        "outs": "end",
+        "topic": "threshold",
+        "topicType": "str",
+        "min": 0,
+        "max": "100",
+        "step": 1,
+        "className": "",
+        "x": 150,
+        "y": 780,
+        "wires": [
+            [
+                "delay-threshold",
+                "log-threshold"
+            ]
+        ]
+    },
+    {
+        "id": "delay-threshold",
+        "type": "delay",
+        "z": "a1b2c3d4e5f6g7h8",
+        "name": "Debounce 400ms",
+        "pauseType": "rate",
+        "timeout": "400",
+        "timeoutUnits": "milliseconds",
+        "rate": "1",
+        "nbRateUnits": "1",
+        "rateUnits": "second",
+        "randomFirst": "1",
+        "randomLast": "5",
+        "randomUnits": "seconds",
+        "drop": true,
+        "allowrate": false,
+        "outputs": 1,
+        "x": 360,
+        "y": 780,
+        "wires": [
+            [
+                "format-command-threshold"
+            ]
+        ]
+    },
+    {
+        "id": "format-command-threshold",
+        "type": "function",
+        "z": "a1b2c3d4e5f6g7h8",
+        "name": "Format: {threshold: 0-1023}",
+        "func": "// Konversi persentase (0-100) ke nilai ADC (0-1023)\nconst deviceValue = Math.round((msg.payload / 100) * 1023);\nmsg.payload = { threshold: deviceValue };\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 590,
+        "y": 780,
+        "wires": [
+            [
+                "command-aggregator"
+            ]
+        ]
+    },
+    {
+        "id": "log-teras-manual",
+        "type": "function",
+        "z": "a1b2c3d4e5f6g7h8",
+        "name": "Log: Teras Manual",
+        "func": "msg.payload = \"Lampu Teras di-toggle (Manual)\";\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 370,
+        "y": 360,
+        "wires": [
+            [
+                "add-to-history"
+            ]
+        ]
+    },
+    {
+        "id": "add-to-history",
+        "type": "function",
+        "z": "a1b2c3d4e5f6g7h8",
+        "name": "Buat Entri Log",
+        "func": "// Ambil history yang ada, atau buat array baru jika belum ada\nlet history = flow.get('activityLog') || [];\n\n// Buat timestamp\nconst now = new Date();\nconst timestamp = now.toLocaleTimeString('id-ID');\n\n// Buat entri baru\nconst newEntry = {\n    time: timestamp,\n    message: msg.payload\n};\n\n// Tambahkan entri baru ke awal array\nhistory.unshift(newEntry);\n\n// Batasi jumlah log menjadi 50 entri\nif (history.length > 50) {\n    history.pop();\n}\n\n// Simpan kembali ke flow context\nflow.set('activityLog', history);\n\n// Kirim array history ke UI\nmsg.payload = history;\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 640,
+        "y": 900,
+        "wires": [
+            [
+                "ui-log-template"
+            ]
+        ]
+    },
+    {
+        "id": "ui-log-template",
+        "type": "ui_template",
+        "z": "a1b2c3d4e5f6g7h8",
+        "group": "group-log",
+        "name": "Tabel Riwayat",
+        "order": 1,
+        "width": "12",
+        "height": "8",
+        "format": "<style>\n    .log-table {\n        width: 100%;\n        border-collapse: collapse;\n    }\n    .log-table th, .log-table td {\n        padding: 8px;\n        text-align: left;\n        border-bottom: 1px solid #444;\n    }\n    .log-table th {\n        font-weight: bold;\n    }\n    .log-time {\n        font-family: monospace;\n        color: #aaa;\n        min-width: 80px;\n    }\n</style>\n\n<table class=\"log-table\">\n    <thead>\n        <tr>\n            <th>Waktu</th>\n            <th>Aktivitas</th>\n        </tr>\n    </thead>\n    <tbody>\n        <tr ng-repeat=\"entry in msg.payload\">\n            <td class=\"log-time\">{{entry.time}}</td>\n            <td>{{entry.message}}</td>\n        </tr>\n    </tbody>\n</table>\n",
+        "storeOutMessages": true,
+        "fwdInMessages": true,
+        "resendOnRefresh": true,
+        "templateScope": "local",
+        "className": "",
+        "x": 840,
+        "y": 900,
+        "wires": [
+            []
+        ]
+    },
+    {
+        "id": "log-kamar1-manual",
+        "type": "function",
+        "z": "a1b2c3d4e5f6g7h8",
+        "name": "Log: Kamar 1 Manual",
+        "func": "msg.payload = \"Lampu Kamar 1 di-toggle (Manual)\";\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 380,
+        "y": 460,
+        "wires": [
+            [
+                "add-to-history"
+            ]
+        ]
+    },
+    {
+        "id": "log-kamar2-manual",
+        "type": "function",
+        "z": "a1b2c3d4e5f6g7h8",
+        "name": "Log: Kamar 2 Manual",
+        "func": "msg.payload = \"Lampu Kamar 2 di-toggle (Manual)\";\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 380,
+        "y": 600,
+        "wires": [
+            [
+                "add-to-history"
+            ]
+        ]
+    },
+    {
+        "id": "log-mode-auto",
+        "type": "function",
+        "z": "a1b2c3d4e5f6g7h8",
+        "name": "Log: Mode Auto",
+        "func": "msg.payload = \"Mode diubah ke AUTO\";\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 360,
+        "y": 630,
+        "wires": [
+            [
+                "add-to-history"
+            ]
+        ]
+    },
+    {
+        "id": "log-mode-manual",
+        "type": "function",
+        "z": "a1b2c3d4e5f6g7h8",
+        "name": "Log: Mode Manual",
+        "func": "msg.payload = \"Mode diubah ke MANUAL\";\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 370,
+        "y": 710,
+        "wires": [
+            [
+                "add-to-history"
+            ]
+        ]
+    },
+    {
+        "id": "log-threshold",
+        "type": "function",
+        "z": "a1b2c3d4e5f6g7h8",
+        "name": "Log: Threshold",
+        "func": "msg.payload = `Ambang batas LDR diatur ke ${msg.payload}%`;\nreturn msg;",
+        "outputs": 1,
+        "noerr": 0,
+        "initialize": "",
+        "finalize": "",
+        "libs": [],
+        "x": 350,
+        "y": 820,
+        "wires": [
+            [
+                "add-to-history"
+            ]
+        ]
     },
     {
         "id": "serial-in-esp",
         "type": "serial in",
         "z": "a1b2c3d4e5f6g7h8",
         "name": "ESP8266 Serial In",
-        "serial": "c9d1b2f3a1d0e4b5",
+        "serial": "serial-port-config",
         "x": 150,
-        "y": 200,
+        "y": 60,
         "wires": [
             [
                 "json-parser-esp"
@@ -29,24 +687,24 @@
         "action": "",
         "pretty": false,
         "x": 370,
-        "y": 200,
+        "y": 60,
         "wires": [
             [
-                "mqtt-out-ldr-status"
+                "mqtt-out-status-bridge"
             ]
         ]
     },
     {
-        "id": "mqtt-out-ldr-status",
+        "id": "mqtt-out-status-bridge",
         "type": "mqtt out",
         "z": "a1b2c3d4e5f6g7h8",
-        "name": "MQTT Out: LDR Status",
+        "name": "Bridge to MQTT (POLINES/FADLI/IL)",
         "topic": "POLINES/FADLI/IL",
         "qos": "1",
         "retain": "true",
-        "broker": "90a08a8a9b3870d2",
-        "x": 610,
-        "y": 200,
+        "broker": "mqtt-broker-config",
+        "x": 630,
+        "y": 60,
         "wires": []
     },
     {
@@ -54,75 +712,24 @@
         "type": "serial out",
         "z": "a1b2c3d4e5f6g7h8",
         "name": "ESP8266 Serial Out",
-        "serial": "c9d1b2f3a1d0e4b5",
-        "x": 870,
-        "y": 440,
+        "serial": "serial-port-config",
+        "x": 1070,
+        "y": 620,
         "wires": []
-    },
-    {
-        "id": "mqtt-in-ldr-command",
-        "type": "mqtt in",
-        "z": "a1b2c3d4e5f6g7h8",
-        "name": "MQTT In: LDR Command",
-        "topic": "POLINES/PADLI/IL",
-        "qos": "2",
-        "datatype": "json",
-        "broker": "90a08a8a9b3870d2",
-        "x": 160,
-        "y": 440,
-        "wires": [
-            [
-                "command-aggregator"
-            ]
-        ]
-    },
-    {
-        "id": "mqtt-in-ldr-threshold",
-        "type": "mqtt in",
-        "z": "a1b2c3d4e5f6g7h8",
-        "name": "MQTT In: LDR Threshold",
-        "topic": "POLINES/BADLI/IL",
-        "qos": "2",
-        "datatype": "json",
-        "broker": "90a08a8a9b3870d2",
-        "x": 160,
-        "y": 500,
-        "wires": [
-            [
-                "command-aggregator"
-            ]
-        ]
-    },
-    {
-        "id": "mqtt-in-room-command",
-        "type": "mqtt in",
-        "z": "a1b2c3d4e5f6g7h8",
-        "name": "MQTT In: Room Lamp Command",
-        "topic": "POLINES/LAMPU_RUANG/COMMAND",
-        "qos": "2",
-        "datatype": "json",
-        "broker": "90a08a8a9b3870d2",
-        "x": 190,
-        "y": 560,
-        "wires": [
-            [
-                "command-aggregator"
-            ]
-        ]
     },
     {
         "id": "command-aggregator",
         "type": "function",
         "z": "a1b2c3d4e5f6g7h8",
-        "name": "Process & Route Commands",
-        "func": "let cmd = msg.payload;\nlet out = {};\n\n// Dari MQTT LDR Dashboard (Topik: POLINES/PADLI/IL & POLINES/BADLI/IL)\nif (cmd.mode) out.mode = cmd.mode;\nif (cmd.led === 'toggle') out.led = 'toggle'; // Untuk kontrol manual lampu teras\nif (cmd.threshold) out.threshold = cmd.threshold; // Ini nilai 0-1023\n\n// Dari MQTT Room Lamp Dashboard / Gestur (Topik: POLINES/LAMPU_RUANG/COMMAND)\nif (cmd.hasOwnProperty('toggle_lamp1')) out.toggle_lamp1 = true;\nif (cmd.hasOwnProperty('toggle_lamp2')) out.toggle_lamp2 = true;\n\n// Hanya kirim jika ada perintah yang valid\nif (Object.keys(out).length > 0) {\n    // Tambahkan newline agar mudah dibaca oleh Arduino `readStringUntil('\\n')`\n    msg.payload = JSON.stringify(out) + '\\n';\n    return msg;\n}\n\nreturn null; // Hentikan flow jika tidak ada perintah yang relevan",
+        "name": "Command Aggregator for Serial",
+        "func": "// Ambil payload dari pesan yang masuk\nlet cmd = msg.payload;\n\n// Buat objek output kosong\nlet out = {};\n\n// Cek jenis perintah dan tambahkan ke objek output\nif (cmd.mode) out.mode = cmd.mode;\nif (cmd.led === 'toggle') out.led = 'toggle';\nif (cmd.threshold) out.threshold = cmd.threshold;\nif (cmd.toggle_lamp1) out.toggle_lamp1 = true;\nif (cmd.toggle_lamp2) out.toggle_lamp2 = true;\nif (cmd.time) out.time = cmd.time;\n\n// Hanya kirim jika ada perintah yang valid\nif (Object.keys(out).length > 0) {\n    // Ubah objek menjadi string JSON dan tambahkan newline\n    msg.payload = JSON.stringify(out) + '\\n';\n    return msg;\n}\n\nreturn null; // Hentikan flow jika tidak ada perintah yang relevan",
         "outputs": 1,
         "noerr": 0,
         "initialize": "",
         "finalize": "",
         "libs": [],
-        "x": 590,
-        "y": 440,
+        "x": 800,
+        "y": 620,
         "wires": [
             [
                 "serial-out-esp"
@@ -141,7 +748,7 @@
         "onceDelay": "5",
         "topic": "",
         "x": 170,
-        "y": 340,
+        "y": 860,
         "wires": [
             [
                 "get-time-function"
@@ -160,7 +767,7 @@
         "finalize": "",
         "libs": [],
         "x": 400,
-        "y": 340,
+        "y": 860,
         "wires": [
             [
                 "command-aggregator"
@@ -168,7 +775,69 @@
         ]
     },
     {
-        "id": "c9d1b2f3a1d0e4b5",
+        "id": "mqtt-broker-config",
+        "type": "mqtt-broker",
+        "name": "broker.hivemq.com",
+        "broker": "broker.hivemq.com",
+        "port": "1883",
+        "clientid": "",
+        "autoConnect": true,
+        "usetls": false,
+        "protocolVersion": "4",
+        "keepalive": "60",
+        "cleansession": true,
+        "autoUnsubscribe": true
+    },
+    {
+        "id": "group-status",
+        "type": "ui_group",
+        "name": "Status & Monitoring",
+        "tab": "tab-dashboard",
+        "order": 1,
+        "disp": true,
+        "width": "6",
+        "collapse": false
+    },
+    {
+        "id": "group-grafik",
+        "type": "ui_group",
+        "name": "Grafik Intensitas Cahaya",
+        "tab": "tab-dashboard",
+        "order": 4,
+        "disp": true,
+        "width": "12",
+        "collapse": false
+    },
+    {
+        "id": "group-kontrol",
+        "type": "ui_group",
+        "name": "Panel Kontrol",
+        "tab": "tab-dashboard",
+        "order": 2,
+        "disp": true,
+        "width": "6",
+        "collapse": false
+    },
+    {
+        "id": "group-log",
+        "type": "ui_group",
+        "name": "Riwayat Aktivitas",
+        "tab": "tab-dashboard",
+        "order": 5,
+        "disp": true,
+        "width": "12",
+        "collapse": false
+    },
+    {
+        "id": "tab-dashboard",
+        "type": "ui_tab",
+        "name": "Home",
+        "icon": "dashboard",
+        "disabled": false,
+        "hidden": false
+    },
+    {
+        "id": "serial-port-config",
         "type": "serial-port",
         "name": "",
         "serialport": "COM12",
@@ -182,36 +851,5 @@
         "out": "char",
         "addchar": "",
         "responsetimeout": "10000"
-    },
-    {
-        "id": "90a08a8a9b3870d2",
-        "type": "mqtt-broker",
-        "name": "broker.hivemq.com",
-        "broker": "broker.hivemq.com",
-        "port": "1883",
-        "clientid": "",
-        "autoConnect": true,
-        "usetls": false,
-        "protocolVersion": "4",
-        "keepalive": "60",
-        "cleansession": true,
-        "autoUnsubscribe": true,
-        "birthTopic": "",
-        "birthQos": "0",
-        "birthRetain": "false",
-        "birthPayload": "",
-        "birthMsg": {},
-        "closeTopic": "",
-        "closeQos": "0",
-        "closeRetain": "false",
-        "closePayload": "",
-        "closeMsg": {},
-        "willTopic": "",
-        "willQos": "0",
-        "willRetain": "false",
-        "willPayload": "",
-        "willMsg": {},
-        "userProps": "",
-        "sessionExpiry": ""
     }
 ]
