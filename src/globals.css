@@ -97,7 +97,7 @@
 
   body {
     @apply text-foreground;
-    background-image: url('/natal.jpg');
+    background-image: url('/natal-bg.jpeg');
     background-size: cover;
     background-position: center;
     background-repeat: no-repeat;
