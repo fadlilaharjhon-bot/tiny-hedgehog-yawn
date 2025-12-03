@@ -1,110 +1,264 @@
+// =======================================================================
+// == KENDALI MODERN - FIRMWARE ESP8266 (VERSI SELARAS DENGAN DASHBOARD) ==
+// =======================================================================
+
+// Library yang dibutuhkan
+#include <ESP8266WiFi.h>
+#include <PubSubClient.h>
 #include <ArduinoJson.h>
 
-// --- KONFIGURASI YANG PERLU ANDA UBAH ---
-// Pinout untuk Relay (sesuaikan dengan board Anda)
-const int RELAY_TERAS = D1;
-const int RELAY_KAMAR1 = D2;
-const int RELAY_KAMAR2 = D3;
+// --- KONFIGURASI JARINGAN ---
+const char* ssid = "NAMA_WIFI_ANDA";
+const char* password = "PASSWORD_WIFI_ANDA";
 
-// Pin untuk LDR
+// --- KONFIGURASI MQTT BROKER ---
+const char* mqtt_server = "broker.hivemq.com";
+const int mqtt_port = 1883;
+
+// --- PENYESUAIAN: TOPIK MQTT SESUAI NODE-RED ---
+const char* TOPIC_STATUS = "POLINES/FADLI/IL";
+const char* TOPIC_CMD_TERAS = "POLINES/PADLI/IL";
+const char* TOPIC_CMD_THRESHOLD = "POLINES/BADLI/IL";
+const char* TOPIC_CMD_RUANG = "POLINES/LAMPU_RUANG/COMMAND";
+
+// --- PINOUT PERANGKAT KERAS ---
 const int LDR_PIN = A0;
-// --- AKHIR KONFIGURASI ---
+const int RELAY_TERAS_PIN = D1;
+const int RELAY_KAMAR1_PIN = D2;
+const int RELAY_KAMAR2_PIN = D3;
+const int PB_KAMAR1_PIN = D5;
+const int PB_KAMAR2_PIN = D6;
 
-// Variabel untuk menyimpan status saat ini
-bool statusLampuTeras = false;
-bool statusLampuKamar1 = false;
-bool statusLampuKamar2 = false;
-String modeTeras = "auto";
-int nilaiLdr = 0;
-int nilaiThreshold = 40; // Dalam persen (0-100)
+// --- VARIABEL GLOBAL ---
+WiFiClient espClient;
+PubSubClient client(espClient);
 
-// Variabel untuk timer non-blocking
-unsigned long previousMillis = 0;
-const long interval = 2000; // Kirim status setiap 2 detik
+// Variabel untuk menyimpan state/status
+int ldrValue = 0;
+int ldrPercentage = 0;
+bool lampuTerasState = false;
+bool lampuKamar1State = false;
+bool lampuKamar2State = false;
+String mode = "auto";
+int autoThresholdPercentage = 40; // Threshold dalam persen (0-100)
 
-void setup() {
-  // Mulai komunikasi serial dengan Node-RED
-  Serial.begin(9600);
+// Variabel untuk debouncing push button
+unsigned long lastDebounceTime = 0;
+unsigned long debounceDelay = 50;
+int lastButtonStateKamar1 = HIGH;
+int lastButtonStateKamar2 = HIGH;
 
-  // Atur mode pin untuk relay
-  pinMode(RELAY_TERAS, OUTPUT);
-  pinMode(RELAY_KAMAR1, OUTPUT);
-  pinMode(RELAY_KAMAR2, OUTPUT);
+// Timer untuk publikasi status rutin
+unsigned long lastStatusPublish = 0;
+const long publishInterval = 2000; // Kirim status setiap 2 detik
 
-  // Set semua relay ke kondisi mati (LOW atau HIGH tergantung jenis relay Anda)
-  digitalWrite(RELAY_TERAS, LOW);
-  digitalWrite(RELAY_KAMAR1, LOW);
-  digitalWrite(RELAY_KAMAR2, LOW);
-}
+// --- DEKLARASI FUNGSI ---
+void setup_wifi();
+void reconnect();
+void publishStatus();
+void handlePushButtons();
 
-void loop() {
-  // 1. Cek perintah masuk dari Node-RED (via Serial)
-  checkSerialCommands();
+// --- FUNGSI CALLBACK MQTT ---
+// Fungsi ini dipanggil setiap kali ada pesan masuk dari topik yang di-subscribe
+void callback(char* topic, byte* payload, unsigned int length) {
+  Serial.print("Pesan diterima [");
+  Serial.print(topic);
+  Serial.print("] ");
 
-  // 2. Kirim status ke Node-RED secara berkala (setiap 2 detik)
-  unsigned long currentMillis = millis();
-  if (currentMillis - previousMillis >= interval) {
-    previousMillis = currentMillis;
-    
-    // Baca nilai LDR
-    int ldrRaw = analogRead(LDR_PIN);
-    // Konversi nilai raw (0-1023) ke persentase (0-100), dibalik karena LDR makin terang makin kecil nilainya
-    nilaiLdr = map(ldrRaw, 0, 1023, 100, 0);
+  char message[length + 1];
+  strncpy(message, (char*)payload, length);
+  message[length] = '\0';
+  Serial.println(message);
 
-    // Kirim status dalam format JSON
-    sendStatus();
+  StaticJsonDocument<256> doc;
+  DeserializationError error = deserializeJson(doc, message);
+
+  if (error) {
+    Serial.print(F("deserializeJson() gagal: "));
+    Serial.println(error.f_str());
+    return;
   }
-}
 
-void checkSerialCommands() {
-  if (Serial.available() > 0) {
-    String commandStr = Serial.readStringUntil('\n');
-    
-    StaticJsonDocument<200> doc;
-    DeserializationError error = deserializeJson(doc, commandStr);
+  bool needsUpdate = false;
 
-    if (error) {
-      // Gagal parsing JSON, abaikan
-      return;
-    }
-
-    // --- Proses Perintah untuk Lampu Teras ---
+  // --- PENYESUAIAN: Logika berdasarkan topik yang masuk ---
+  if (strcmp(topic, TOPIC_CMD_TERAS) == 0) {
     if (doc.containsKey("mode")) {
-      modeTeras = doc["mode"].as<String>();
+      mode = doc["mode"].as<String>();
+      needsUpdate = true;
     }
     if (doc.containsKey("led") && doc["led"] == "toggle") {
-      statusLampuTeras = !statusLampuTeras;
-      digitalWrite(RELAY_TERAS, statusLampuTeras);
+      if (mode == "manual") {
+        lampuTerasState = !lampuTerasState;
+        digitalWrite(RELAY_TERAS_PIN, lampuTerasState);
+        needsUpdate = true;
+      }
     }
+  } else if (strcmp(topic, TOPIC_CMD_THRESHOLD) == 0) {
     if (doc.containsKey("threshold")) {
-      // Node-RED mengirim nilai 0-1023, kita simpan sebagai persen
-      nilaiThreshold = map(doc["threshold"].as<int>(), 0, 1023, 0, 100);
+      // Menerima nilai 0-1023, konversi ke persen
+      autoThresholdPercentage = map(doc["threshold"].as<int>(), 0, 1023, 0, 100);
+      needsUpdate = true;
     }
-
-    // --- Proses Perintah untuk Lampu Kamar ---
+  } else if (strcmp(topic, TOPIC_CMD_RUANG) == 0) {
     if (doc.containsKey("toggle_lamp1")) {
-      statusLampuKamar1 = !statusLampuKamar1;
-      digitalWrite(RELAY_KAMAR1, statusLampuKamar1);
+      lampuKamar1State = !lampuKamar1State;
+      digitalWrite(RELAY_KAMAR1_PIN, lampuKamar1State);
+      needsUpdate = true;
     }
     if (doc.containsKey("toggle_lamp2")) {
-      statusLampuKamar2 = !statusLampuKamar2;
-      digitalWrite(RELAY_KAMAR2, statusLampuKamar2);
+      lampuKamar2State = !lampuKamar2State;
+      digitalWrite(RELAY_KAMAR2_PIN, lampuKamar2State);
+      needsUpdate = true;
     }
+  }
+
+  // Jika ada perubahan, langsung publikasikan status terbaru
+  if (needsUpdate) {
+    publishStatus();
   }
 }
 
-void sendStatus() {
-  StaticJsonDocument<200> doc;
-
-  doc["intensity"] = nilaiLdr;
-  doc["led"] = statusLampuTeras ? "ON" : "OFF";
-  doc["mode"] = modeTeras;
-  doc["threshold"] = nilaiThreshold;
+// --- FUNGSI SETUP ---
+void setup() {
+  Serial.begin(115200);
   
-  // Sertakan juga status lampu kamar agar dasbor selalu update
-  doc["lamp1_status"] = statusLampuKamar1;
-  doc["lamp2_status"] = statusLampuKamar2;
+  pinMode(RELAY_TERAS_PIN, OUTPUT);
+  pinMode(RELAY_KAMAR1_PIN, OUTPUT);
+  pinMode(RELAY_KAMAR2_PIN, OUTPUT);
+  pinMode(PB_KAMAR1_PIN, INPUT_PULLUP);
+  pinMode(PB_KAMAR2_PIN, INPUT_PULLUP);
 
-  serializeJson(doc, Serial);
-  Serial.println(); // Kirim newline sebagai penanda akhir pesan
+  digitalWrite(RELAY_TERAS_PIN, LOW);
+  digitalWrite(RELAY_KAMAR1_PIN, LOW);
+  digitalWrite(RELAY_KAMAR2_PIN, LOW);
+
+  setup_wifi();
+  client.setServer(mqtt_server, mqtt_port);
+  client.setCallback(callback);
+}
+
+// --- FUNGSI LOOP UTAMA ---
+void loop() {
+  if (!client.connected()) {
+    reconnect();
+  }
+  client.loop();
+
+  handlePushButtons();
+
+  unsigned long now = millis();
+  if (now - lastStatusPublish > publishInterval) {
+    lastStatusPublish = now;
+
+    // Baca LDR dan update status
+    ldrValue = analogRead(LDR_PIN);
+    ldrPercentage = map(ldrValue, 0, 1023, 100, 0);
+
+    // Logika mode auto untuk lampu teras
+    if (mode == "auto") {
+      bool shouldBeOn = (ldrPercentage < autoThresholdPercentage);
+      if (lampuTerasState != shouldBeOn) {
+        lampuTerasState = shouldBeOn;
+        digitalWrite(RELAY_TERAS_PIN, lampuTerasState);
+      }
+    }
+    
+    publishStatus();
+  }
+}
+
+// --- FUNGSI BANTU ---
+
+void publishStatus() {
+  StaticJsonDocument<256> doc;
+  
+  // --- PENYESUAIAN: Kunci JSON sesuai yang diharapkan Node-RED ---
+  doc["intensity"] = ldrPercentage;
+  doc["led"] = lampuTerasState ? "ON" : "OFF";
+  doc["lamp1_status"] = lampuKamar1State;
+  doc["lamp2_status"] = lampuKamar2State;
+  doc["mode"] = mode;
+  doc["threshold"] = autoThresholdPercentage;
+
+  char buffer[256];
+  serializeJson(doc, buffer);
+
+  client.publish(TOPIC_STATUS, buffer, true); // true = retained message
+  Serial.print("Status dipublikasikan: ");
+  Serial.println(buffer);
+}
+
+void handlePushButtons() {
+  bool stateChanged = false;
+
+  // Debouncing untuk Tombol Kamar 1
+  int reading1 = digitalRead(PB_KAMAR1_PIN);
+  if (reading1 != lastButtonStateKamar1) {
+    lastDebounceTime = millis();
+  }
+  if ((millis() - lastDebounceTime) > debounceDelay) {
+    if (reading1 == LOW && lastButtonStateKamar1 == HIGH) {
+      lampuKamar1State = !lampuKamar1State;
+      digitalWrite(RELAY_KAMAR1_PIN, lampuKamar1State);
+      stateChanged = true;
+    }
+  }
+  lastButtonStateKamar1 = reading1;
+
+  // Debouncing untuk Tombol Kamar 2
+  int reading2 = digitalRead(PB_KAMAR2_PIN);
+  if (reading2 != lastButtonStateKamar2) {
+    lastDebounceTime = millis();
+  }
+  if ((millis() - lastDebounceTime) > debounceDelay) {
+    if (reading2 == LOW && lastButtonStateKamar2 == HIGH) {
+      lampuKamar2State = !lampuKamar2State;
+      digitalWrite(RELAY_KAMAR2_PIN, lampuKamar2State);
+      stateChanged = true;
+    }
+  }
+  lastButtonStateKamar2 = reading2;
+
+  // Jika ada perubahan dari tombol, langsung kirim status
+  if (stateChanged) {
+    Serial.println("Perubahan status dari tombol fisik!");
+    publishStatus();
+  }
+}
+
+void setup_wifi() {
+  delay(10);
+  Serial.println();
+  Serial.print("Menghubungkan ke ");
+  Serial.println(ssid);
+  WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+  Serial.println("\nWiFi terhubung");
+  Serial.print("Alamat IP: ");
+  Serial.println(WiFi.localIP());
+}
+
+void reconnect() {
+  while (!client.connected()) {
+    Serial.print("Mencoba koneksi MQTT...");
+    String clientId = "ESP8266-KendaliModern-";
+    clientId += String(random(0xffff), HEX);
+    if (client.connect(clientId.c_str())) {
+      Serial.println("terhubung");
+      // --- PENYESUAIAN: Subscribe ke semua topik perintah ---
+      client.subscribe(TOPIC_CMD_TERAS);
+      client.subscribe(TOPIC_CMD_THRESHOLD);
+      client.subscribe(TOPIC_CMD_RUANG);
+      Serial.println("Berhasil subscribe ke semua topik perintah.");
+    } else {
+      Serial.print("gagal, rc=");
+      Serial.print(client.state());
+      Serial.println(" coba lagi dalam 5 detik");
+      delay(5000);
+    }
+  }
 }
