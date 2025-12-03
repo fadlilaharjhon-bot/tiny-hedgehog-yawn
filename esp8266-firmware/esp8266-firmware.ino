@@ -155,7 +155,7 @@ void loop() {
     ldrValue = analogRead(LDR_PIN);
     ldrPercentage = map(ldrValue, 0, 1023, 100, 0);
 
-    // Logika mode auto untuk lampu teras (LDR ONLY)
+    // Logika mode auto untuk lampu teras
     if (mode == "auto") {
       bool shouldBeOn = (ldrPercentage < autoThresholdPercentage);
       if (lampuTerasState != shouldBeOn) {

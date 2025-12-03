@@ -1,16 +1,16 @@
 [
     {
-        "id": "a1b2c3d4e5f6g7h8",
+        "id": "269287e36998d1ca",
         "type": "tab",
-        "label": "Dashboard Kendali Modern (LDR Only)",
+        "label": "Dashboard Kendali Modern",
         "disabled": false,
         "info": "Dashboard lengkap untuk memonitor dan mengontrol sistem lampu teras dan kamar secara real-time."
     },
     {
-        "id": "mqtt-in-status",
+        "id": "5fc7ab37afee5a29",
         "type": "mqtt in",
-        "z": "a1b2c3d4e5f6g7h8",
-        "name": "Status dari Bridge (MQTT)",
+        "z": "269287e36998d1ca",
+        "name": "Status dari ESP8266",
         "topic": "POLINES/FADLI/IL",
         "qos": "2",
         "datatype": "json",
@@ -19,18 +19,18 @@
         "rap": true,
         "rh": 0,
         "inputs": 0,
-        "x": 180,
-        "y": 160,
+        "x": 160,
+        "y": 100,
         "wires": [
             [
-                "split-data-function"
+                "d1ac4ae8c42738e5"
             ]
         ]
     },
     {
-        "id": "split-data-function",
+        "id": "d1ac4ae8c42738e5",
         "type": "function",
-        "z": "a1b2c3d4e5f6g7h8",
+        "z": "269287e36998d1ca",
         "name": "Pisah & Simpan Data",
         "func": "// Simpan semua data ke flow context agar state tidak hilang\nflow.set('latestStatus', msg.payload);\n\n// Siapkan pesan untuk setiap output\nlet intensityMsg = { payload: msg.payload.intensity };\nlet chartMsg = { payload: msg.payload.intensity };\nlet statusTerasMsg = { payload: msg.payload.led === 'ON' ? 'NYALA' : 'MATI' };\nlet statusKamar1Msg = { payload: msg.payload.lamp1_status ? 'NYALA' : 'MATI' };\nlet statusKamar2Msg = { payload: msg.payload.lamp2_status ? 'NYALA' : 'MATI' };\nlet modeMsg = { payload: msg.payload.mode ? msg.payload.mode.toUpperCase() : 'N/A' };\n\n// Kirim ke masing-masing UI node\nreturn [intensityMsg, chartMsg, statusTerasMsg, statusKamar1Msg, statusKamar2Msg, modeMsg];",
         "outputs": 6,
@@ -38,33 +38,33 @@
         "initialize": "",
         "finalize": "",
         "libs": [],
-        "x": 410,
-        "y": 160,
+        "x": 390,
+        "y": 100,
         "wires": [
             [
-                "ui-gauge-intensity"
+                "2fa0d500223c4725"
             ],
             [
-                "ui-chart-intensity"
+                "363d27059c27e05b"
             ],
             [
-                "ui-text-teras"
+                "e9328806a1e067e2"
             ],
             [
-                "ui-text-kamar1"
+                "e6dbc277304422d1"
             ],
             [
-                "ui-text-kamar2"
+                "710ca0c16335fa56"
             ],
             [
-                "ui-text-mode"
+                "f6d60c8d8aa4edb0"
             ]
         ]
     },
     {
-        "id": "ui-gauge-intensity",
+        "id": "2fa0d500223c4725",
         "type": "ui_gauge",
-        "z": "a1b2c3d4e5f6g7h8",
+        "z": "269287e36998d1ca",
         "name": "Intensitas Cahaya",
         "group": "group-status",
         "order": 1,
@@ -84,14 +84,14 @@
         "seg1": "30",
         "seg2": "70",
         "className": "",
-        "x": 670,
-        "y": 100,
+        "x": 650,
+        "y": 40,
         "wires": []
     },
     {
-        "id": "ui-chart-intensity",
+        "id": "363d27059c27e05b",
         "type": "ui_chart",
-        "z": "a1b2c3d4e5f6g7h8",
+        "z": "269287e36998d1ca",
         "name": "Grafik Intensitas",
         "group": "group-grafik",
         "order": 1,
@@ -125,16 +125,16 @@
         "outputs": 1,
         "useDifferentColor": false,
         "className": "",
-        "x": 660,
-        "y": 140,
+        "x": 640,
+        "y": 80,
         "wires": [
             []
         ]
     },
     {
-        "id": "ui-text-teras",
+        "id": "e9328806a1e067e2",
         "type": "ui_text",
-        "z": "a1b2c3d4e5f6g7h8",
+        "z": "269287e36998d1ca",
         "group": "group-status",
         "order": 2,
         "width": 0,
@@ -144,14 +144,14 @@
         "format": "{{msg.payload}}",
         "layout": "row-spread",
         "className": "",
-        "x": 650,
-        "y": 180,
+        "x": 630,
+        "y": 120,
         "wires": []
     },
     {
-        "id": "ui-text-kamar1",
+        "id": "e6dbc277304422d1",
         "type": "ui_text",
-        "z": "a1b2c3d4e5f6g7h8",
+        "z": "269287e36998d1ca",
         "group": "group-status",
         "order": 3,
         "width": 0,
@@ -161,14 +161,14 @@
         "format": "{{msg.payload}}",
         "layout": "row-spread",
         "className": "",
-        "x": 660,
-        "y": 220,
+        "x": 640,
+        "y": 160,
         "wires": []
     },
     {
-        "id": "ui-text-kamar2",
+        "id": "710ca0c16335fa56",
         "type": "ui_text",
-        "z": "a1b2c3d4e5f6g7h8",
+        "z": "269287e36998d1ca",
         "group": "group-status",
         "order": 4,
         "width": 0,
@@ -178,14 +178,14 @@
         "format": "{{msg.payload}}",
         "layout": "row-spread",
         "className": "",
-        "x": 660,
-        "y": 260,
+        "x": 640,
+        "y": 200,
         "wires": []
     },
     {
-        "id": "ui-text-mode",
+        "id": "f6d60c8d8aa4edb0",
         "type": "ui_text",
-        "z": "a1b2c3d4e5f6g7h8",
+        "z": "269287e36998d1ca",
         "group": "group-status",
         "order": 5,
         "width": 0,
@@ -195,14 +195,14 @@
         "format": "{{msg.payload}}",
         "layout": "row-spread",
         "className": "",
-        "x": 650,
-        "y": 300,
+        "x": 630,
+        "y": 240,
         "wires": []
     },
     {
-        "id": "ui-switch-teras",
+        "id": "5f4357e338f82a0d",
         "type": "ui_switch",
-        "z": "a1b2c3d4e5f6g7h8",
+        "z": "269287e36998d1ca",
         "name": "Lampu Teras",
         "label": "Lampu Teras (Manual)",
         "tooltip": "",
@@ -226,18 +226,18 @@
         "animate": false,
         "className": "",
         "x": 140,
-        "y": 400,
+        "y": 320,
         "wires": [
             [
-                "format-command-teras",
-                "log-teras-manual"
+                "8e057cfb58b09cda",
+                "17f83f659db0bc50"
             ]
         ]
     },
     {
-        "id": "format-command-teras",
+        "id": "8e057cfb58b09cda",
         "type": "function",
-        "z": "a1b2c3d4e5f6g7h8",
+        "z": "269287e36998d1ca",
         "name": "Format: {led: 'toggle'}",
         "func": "msg.payload = { led: 'toggle' };\nreturn msg;",
         "outputs": 1,
@@ -246,17 +246,35 @@
         "finalize": "",
         "libs": [],
         "x": 380,
-        "y": 400,
+        "y": 320,
         "wires": [
             [
-                "command-aggregator"
+                "2bdedea20ead0631"
             ]
         ]
     },
     {
-        "id": "ui-switch-kamar1",
+        "id": "2bdedea20ead0631",
+        "type": "mqtt out",
+        "z": "269287e36998d1ca",
+        "name": "Ke ESP (POLINES/PADLI/IL)",
+        "topic": "POLINES/PADLI/IL",
+        "qos": "2",
+        "retain": "false",
+        "respTopic": "",
+        "contentType": "",
+        "userProps": "",
+        "correl": "",
+        "expiry": "",
+        "broker": "mqtt-broker-config",
+        "x": 670,
+        "y": 360,
+        "wires": []
+    },
+    {
+        "id": "380158df8d237179",
         "type": "ui_switch",
-        "z": "a1b2c3d4e5f6g7h8",
+        "z": "269287e36998d1ca",
         "name": "Lampu Kamar 1",
         "label": "Lampu Kamar 1",
         "tooltip": "",
@@ -280,18 +298,18 @@
         "animate": false,
         "className": "",
         "x": 140,
-        "y": 500,
+        "y": 420,
         "wires": [
             [
-                "format-command-kamar1",
-                "log-kamar1-manual"
+                "1fdc1ef09361a7ea",
+                "233cca59d4f827b3"
             ]
         ]
     },
     {
-        "id": "format-command-kamar1",
+        "id": "1fdc1ef09361a7ea",
         "type": "function",
-        "z": "a1b2c3d4e5f6g7h8",
+        "z": "269287e36998d1ca",
         "name": "Format: {toggle_lamp1: true}",
         "func": "msg.payload = { toggle_lamp1: true };\nreturn msg;",
         "outputs": 1,
@@ -300,17 +318,35 @@
         "finalize": "",
         "libs": [],
         "x": 400,
-        "y": 500,
+        "y": 420,
         "wires": [
             [
-                "command-aggregator"
+                "3890490f47df871f"
             ]
         ]
     },
     {
-        "id": "ui-switch-kamar2",
+        "id": "3890490f47df871f",
+        "type": "mqtt out",
+        "z": "269287e36998d1ca",
+        "name": "Ke ESP (POLINES/LAMPU_RUANG/COMMAND)",
+        "topic": "POLINES/LAMPU_RUANG/COMMAND",
+        "qos": "2",
+        "retain": "false",
+        "respTopic": "",
+        "contentType": "",
+        "userProps": "",
+        "correl": "",
+        "expiry": "",
+        "broker": "mqtt-broker-config",
+        "x": 720,
+        "y": 450,
+        "wires": []
+    },
+    {
+        "id": "565ea24b2900fa90",
         "type": "ui_switch",
-        "z": "a1b2c3d4e5f6g7h8",
+        "z": "269287e36998d1ca",
         "name": "Lampu Kamar 2",
         "label": "Lampu Kamar 2",
         "tooltip": "",
@@ -334,18 +370,18 @@
         "animate": false,
         "className": "",
         "x": 140,
-        "y": 560,
+        "y": 480,
         "wires": [
             [
-                "format-command-kamar2",
-                "log-kamar2-manual"
+                "fec41db590c71549",
+                "05a54b198ff395bb"
             ]
         ]
     },
     {
-        "id": "format-command-kamar2",
+        "id": "fec41db590c71549",
         "type": "function",
-        "z": "a1b2c3d4e5f6g7h8",
+        "z": "269287e36998d1ca",
         "name": "Format: {toggle_lamp2: true}",
         "func": "msg.payload = { toggle_lamp2: true };\nreturn msg;",
         "outputs": 1,
@@ -354,17 +390,17 @@
         "finalize": "",
         "libs": [],
         "x": 400,
-        "y": 560,
+        "y": 480,
         "wires": [
             [
-                "command-aggregator"
+                "3890490f47df871f"
             ]
         ]
     },
     {
-        "id": "ui-button-auto",
+        "id": "c6bd7c7e70364a74",
         "type": "ui_button",
-        "z": "a1b2c3d4e5f6g7h8",
+        "z": "269287e36998d1ca",
         "name": "Mode Auto",
         "group": "group-kontrol",
         "order": 1,
@@ -382,18 +418,18 @@
         "topic": "mode",
         "topicType": "str",
         "x": 130,
-        "y": 640,
+        "y": 560,
         "wires": [
             [
-                "format-command-mode",
-                "log-mode-auto"
+                "7eb8b3e8657a3e3d",
+                "af20aef17941c0c7"
             ]
         ]
     },
     {
-        "id": "ui-button-manual",
+        "id": "14257541c6b0d759",
         "type": "ui_button",
-        "z": "a1b2c3d4e5f6g7h8",
+        "z": "269287e36998d1ca",
         "name": "Mode Manual",
         "group": "group-kontrol",
         "order": 2,
@@ -411,18 +447,18 @@
         "topic": "mode",
         "topicType": "str",
         "x": 140,
-        "y": 700,
+        "y": 620,
         "wires": [
             [
-                "format-command-mode",
-                "log-mode-manual"
+                "7eb8b3e8657a3e3d",
+                "ceaaaa2e2643c3c3"
             ]
         ]
     },
     {
-        "id": "format-command-mode",
+        "id": "7eb8b3e8657a3e3d",
         "type": "function",
-        "z": "a1b2c3d4e5f6g7h8",
+        "z": "269287e36998d1ca",
         "name": "Format: {mode: '...'}",
         "func": "msg.payload = { mode: msg.payload };\nreturn msg;",
         "outputs": 1,
@@ -431,17 +467,17 @@
         "finalize": "",
         "libs": [],
         "x": 380,
-        "y": 670,
+        "y": 590,
         "wires": [
             [
-                "command-aggregator"
+                "2bdedea20ead0631"
             ]
         ]
     },
     {
-        "id": "ui-slider-threshold",
+        "id": "25c76783f48ff7b1",
         "type": "ui_slider",
-        "z": "a1b2c3d4e5f6g7h8",
+        "z": "269287e36998d1ca",
         "name": "Threshold LDR",
         "label": "Ambang Batas LDR (%)",
         "tooltip": "",
@@ -458,18 +494,18 @@
         "step": 1,
         "className": "",
         "x": 150,
-        "y": 780,
+        "y": 700,
         "wires": [
             [
-                "delay-threshold",
-                "log-threshold"
+                "d4e43b5c6c51f642",
+                "5be76763c13e8a74"
             ]
         ]
     },
     {
-        "id": "delay-threshold",
+        "id": "d4e43b5c6c51f642",
         "type": "delay",
-        "z": "a1b2c3d4e5f6g7h8",
+        "z": "269287e36998d1ca",
         "name": "Debounce 400ms",
         "pauseType": "rate",
         "timeout": "400",
@@ -484,17 +520,17 @@
         "allowrate": false,
         "outputs": 1,
         "x": 360,
-        "y": 780,
+        "y": 700,
         "wires": [
             [
-                "format-command-threshold"
+                "6934b1384d24d958"
             ]
         ]
     },
     {
-        "id": "format-command-threshold",
+        "id": "6934b1384d24d958",
         "type": "function",
-        "z": "a1b2c3d4e5f6g7h8",
+        "z": "269287e36998d1ca",
         "name": "Format: {threshold: 0-1023}",
         "func": "// Konversi persentase (0-100) ke nilai ADC (0-1023)\nconst deviceValue = Math.round((msg.payload / 100) * 1023);\nmsg.payload = { threshold: deviceValue };\nreturn msg;",
         "outputs": 1,
@@ -503,17 +539,35 @@
         "finalize": "",
         "libs": [],
         "x": 590,
-        "y": 780,
+        "y": 700,
         "wires": [
             [
-                "command-aggregator"
+                "61ac871ca075dab4"
             ]
         ]
     },
     {
-        "id": "log-teras-manual",
+        "id": "61ac871ca075dab4",
+        "type": "mqtt out",
+        "z": "269287e36998d1ca",
+        "name": "Ke ESP (POLINES/BADLI/IL)",
+        "topic": "POLINES/BADLI/IL",
+        "qos": "2",
+        "retain": "false",
+        "respTopic": "",
+        "contentType": "",
+        "userProps": "",
+        "correl": "",
+        "expiry": "",
+        "broker": "mqtt-broker-config",
+        "x": 870,
+        "y": 700,
+        "wires": []
+    },
+    {
+        "id": "17f83f659db0bc50",
         "type": "function",
-        "z": "a1b2c3d4e5f6g7h8",
+        "z": "269287e36998d1ca",
         "name": "Log: Teras Manual",
         "func": "msg.payload = \"Lampu Teras di-toggle (Manual)\";\nreturn msg;",
         "outputs": 1,
@@ -522,17 +576,17 @@
         "finalize": "",
         "libs": [],
         "x": 370,
-        "y": 360,
+        "y": 280,
         "wires": [
             [
-                "add-to-history"
+                "dcb10193e7f838fb"
             ]
         ]
     },
     {
-        "id": "add-to-history",
+        "id": "dcb10193e7f838fb",
         "type": "function",
-        "z": "a1b2c3d4e5f6g7h8",
+        "z": "269287e36998d1ca",
         "name": "Buat Entri Log",
         "func": "// Ambil history yang ada, atau buat array baru jika belum ada\nlet history = flow.get('activityLog') || [];\n\n// Buat timestamp\nconst now = new Date();\nconst timestamp = now.toLocaleTimeString('id-ID');\n\n// Buat entri baru\nconst newEntry = {\n    time: timestamp,\n    message: msg.payload\n};\n\n// Tambahkan entri baru ke awal array\nhistory.unshift(newEntry);\n\n// Batasi jumlah log menjadi 50 entri\nif (history.length > 50) {\n    history.pop();\n}\n\n// Simpan kembali ke flow context\nflow.set('activityLog', history);\n\n// Kirim array history ke UI\nmsg.payload = history;\nreturn msg;",
         "outputs": 1,
@@ -541,17 +595,17 @@
         "finalize": "",
         "libs": [],
         "x": 640,
-        "y": 900,
+        "y": 820,
         "wires": [
             [
-                "ui-log-template"
+                "eaf06534a3fb4ee0"
             ]
         ]
     },
     {
-        "id": "ui-log-template",
+        "id": "eaf06534a3fb4ee0",
         "type": "ui_template",
-        "z": "a1b2c3d4e5f6g7h8",
+        "z": "269287e36998d1ca",
         "group": "group-log",
         "name": "Tabel Riwayat",
         "order": 1,
@@ -564,15 +618,15 @@
         "templateScope": "local",
         "className": "",
         "x": 840,
-        "y": 900,
+        "y": 820,
         "wires": [
             []
         ]
     },
     {
-        "id": "log-kamar1-manual",
+        "id": "233cca59d4f827b3",
         "type": "function",
-        "z": "a1b2c3d4e5f6g7h8",
+        "z": "269287e36998d1ca",
         "name": "Log: Kamar 1 Manual",
         "func": "msg.payload = \"Lampu Kamar 1 di-toggle (Manual)\";\nreturn msg;",
         "outputs": 1,
@@ -581,17 +635,17 @@
         "finalize": "",
         "libs": [],
         "x": 380,
-        "y": 460,
+        "y": 380,
         "wires": [
             [
-                "add-to-history"
+                "dcb10193e7f838fb"
             ]
         ]
     },
     {
-        "id": "log-kamar2-manual",
+        "id": "05a54b198ff395bb",
         "type": "function",
-        "z": "a1b2c3d4e5f6g7h8",
+        "z": "269287e36998d1ca",
         "name": "Log: Kamar 2 Manual",
         "func": "msg.payload = \"Lampu Kamar 2 di-toggle (Manual)\";\nreturn msg;",
         "outputs": 1,
@@ -600,17 +654,17 @@
         "finalize": "",
         "libs": [],
         "x": 380,
-        "y": 600,
+        "y": 520,
         "wires": [
             [
-                "add-to-history"
+                "dcb10193e7f838fb"
             ]
         ]
     },
     {
-        "id": "log-mode-auto",
+        "id": "af20aef17941c0c7",
         "type": "function",
-        "z": "a1b2c3d4e5f6g7h8",
+        "z": "269287e36998d1ca",
         "name": "Log: Mode Auto",
         "func": "msg.payload = \"Mode diubah ke AUTO\";\nreturn msg;",
         "outputs": 1,
@@ -619,17 +673,17 @@
         "finalize": "",
         "libs": [],
         "x": 360,
-        "y": 630,
+        "y": 550,
         "wires": [
             [
-                "add-to-history"
+                "dcb10193e7f838fb"
             ]
         ]
     },
     {
-        "id": "log-mode-manual",
+        "id": "ceaaaa2e2643c3c3",
         "type": "function",
-        "z": "a1b2c3d4e5f6g7h8",
+        "z": "269287e36998d1ca",
         "name": "Log: Mode Manual",
         "func": "msg.payload = \"Mode diubah ke MANUAL\";\nreturn msg;",
         "outputs": 1,
@@ -638,17 +692,17 @@
         "finalize": "",
         "libs": [],
         "x": 370,
-        "y": 710,
+        "y": 630,
         "wires": [
             [
-                "add-to-history"
+                "dcb10193e7f838fb"
             ]
         ]
     },
     {
-        "id": "log-threshold",
+        "id": "5be76763c13e8a74",
         "type": "function",
-        "z": "a1b2c3d4e5f6g7h8",
+        "z": "269287e36998d1ca",
         "name": "Log: Threshold",
         "func": "msg.payload = `Ambang batas LDR diatur ke ${msg.payload}%`;\nreturn msg;",
         "outputs": 1,
@@ -657,82 +711,10 @@
         "finalize": "",
         "libs": [],
         "x": 350,
-        "y": 820,
+        "y": 740,
         "wires": [
             [
-                "add-to-history"
-            ]
-        ]
-    },
-    {
-        "id": "serial-in-esp",
-        "type": "serial in",
-        "z": "a1b2c3d4e5f6g7h8",
-        "name": "ESP8266 Serial In",
-        "serial": "serial-port-config",
-        "x": 150,
-        "y": 60,
-        "wires": [
-            [
-                "json-parser-esp"
-            ]
-        ]
-    },
-    {
-        "id": "json-parser-esp",
-        "type": "json",
-        "z": "a1b2c3d4e5f6g7h8",
-        "name": "Parse JSON from ESP",
-        "property": "payload",
-        "action": "",
-        "pretty": false,
-        "x": 370,
-        "y": 60,
-        "wires": [
-            [
-                "mqtt-out-status-bridge"
-            ]
-        ]
-    },
-    {
-        "id": "mqtt-out-status-bridge",
-        "type": "mqtt out",
-        "z": "a1b2c3d4e5f6g7h8",
-        "name": "Bridge to MQTT (POLINES/FADLI/IL)",
-        "topic": "POLINES/FADLI/IL",
-        "qos": "1",
-        "retain": "true",
-        "broker": "mqtt-broker-config",
-        "x": 630,
-        "y": 60,
-        "wires": []
-    },
-    {
-        "id": "serial-out-esp",
-        "type": "serial out",
-        "z": "a1b2c3d4e5f6g7h8",
-        "name": "ESP8266 Serial Out",
-        "serial": "serial-port-config",
-        "x": 1070,
-        "y": 620,
-        "wires": []
-    },
-    {
-        "id": "command-aggregator",
-        "type": "function",
-        "z": "a1b2c3d4e5f6g7h8",
-        "name": "Command Aggregator for Serial",
-        "func": "// Ambil payload dari pesan yang masuk\nlet cmd = msg.payload;\n\n// Buat objek output kosong\nlet out = {};\n\n// Cek jenis perintah dan tambahkan ke objek output\nif (cmd.mode) out.mode = cmd.mode;\nif (cmd.led === 'toggle') out.led = 'toggle';\nif (cmd.threshold) out.threshold = cmd.threshold;\nif (cmd.toggle_lamp1) out.toggle_lamp1 = true;\nif (cmd.toggle_lamp2) out.toggle_lamp2 = true;\n\n// Hanya kirim jika ada perintah yang valid\nif (Object.keys(out).length > 0) {\n    // Ubah objek menjadi string JSON dan tambahkan newline\n    msg.payload = JSON.stringify(out) + '\\n';\n    return msg;\n}\n\nreturn null; // Hentikan flow jika tidak ada perintah yang relevan",
-        "outputs": 1,
-        "noerr": 0,
-        "initialize": "",
-        "finalize": "",
-        "libs": [],
-        "x": 800,
-        "y": 620,
-        "wires": [
-            [
-                "serial-out-esp"
+                "dcb10193e7f838fb"
             ]
         ]
     },
@@ -748,7 +730,24 @@
         "protocolVersion": "4",
         "keepalive": "60",
         "cleansession": true,
-        "autoUnsubscribe": true
+        "autoUnsubscribe": true,
+        "birthTopic": "",
+        "birthQos": "0",
+        "birthRetain": "false",
+        "birthPayload": "",
+        "birthMsg": {},
+        "closeTopic": "",
+        "closeQos": "0",
+        "closeRetain": "false",
+        "closePayload": "",
+        "closeMsg": {},
+        "willTopic": "",
+        "willQos": "0",
+        "willRetain": "false",
+        "willPayload": "",
+        "willMsg": {},
+        "userProps": "",
+        "sessionExpiry": ""
     },
     {
         "id": "group-status",
@@ -799,19 +798,11 @@
         "hidden": false
     },
     {
-        "id": "serial-port-config",
-        "type": "serial-port",
-        "name": "",
-        "serialport": "COM12",
-        "serialbaud": "9600",
-        "databits": "8",
-        "parity": "none",
-        "stopbits": "1",
-        "waitfor": "",
-        "newline": "\\n",
-        "bin": "false",
-        "out": "char",
-        "addchar": "",
-        "responsetimeout": "10000"
+        "id": "a1cfeff03864f219",
+        "type": "global-config",
+        "env": [],
+        "modules": {
+            "node-red-dashboard": "3.6.6"
+        }
     }
 ]
