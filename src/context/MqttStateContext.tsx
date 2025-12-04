@@ -8,9 +8,8 @@ const TOPIC_LDR_STATUS = "POLINES/FADLI/IL";
 const TOPIC_LDR_COMMAND = "POLINES/PADLI/IL";
 const TOPIC_LDR_THRESHOLD_SET = "POLINES/BADLI/IL";
 const TOPIC_ROOM_COMMAND = "POLINES/LAMPU_RUANG/COMMAND";
-// Mengubah dari ws://broker.hivemq.com:8000/mqtt menjadi wss://broker.hivemq.com:8883/mqtt
-// WSS (WebSocket Secure) lebih kompatibel dengan proxy modern seperti Cloudflare.
-const BROKER_URL = "wss://broker.hivemq.com:8883/mqtt";
+// Mengubah port ke 8884, yang merupakan port standar untuk MQTT over WSS.
+const BROKER_URL = "wss://broker.hivemq.com:8884/mqtt";
 
 interface LightStatus {
   teras: boolean;
