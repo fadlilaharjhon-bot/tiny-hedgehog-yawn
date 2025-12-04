@@ -8,7 +8,9 @@ const TOPIC_LDR_STATUS = "POLINES/FADLI/IL";
 const TOPIC_LDR_COMMAND = "POLINES/PADLI/IL";
 const TOPIC_LDR_THRESHOLD_SET = "POLINES/BADLI/IL";
 const TOPIC_ROOM_COMMAND = "POLINES/LAMPU_RUANG/COMMAND";
-const BROKER_URL = "ws://broker.hivemq.com:8000/mqtt";
+// Mengubah dari ws://broker.hivemq.com:8000/mqtt menjadi wss://broker.hivemq.com:8883/mqtt
+// WSS (WebSocket Secure) lebih kompatibel dengan proxy modern seperti Cloudflare.
+const BROKER_URL = "wss://broker.hivemq.com:8883/mqtt";
 
 interface LightStatus {
   teras: boolean;
@@ -128,10 +130,6 @@ export const MqttStateProvider = ({ children }: { children: ReactNode }) => {
     };
   }, [addHistory]);
 
-  // --- AUTO MODE LOGIC (Client-side fallback/simulation) ---
-  // LOGIKA AUTO MODE BERBASIS TIMER DIHAPUS KARENA SUDAH DIHAPUS DARI ESP.
-  // Auto mode sekarang sepenuhnya ditangani oleh LDR di ESP8266.
-  
   // --- ACTION HANDLERS ---
 
   const publishCommand = (topic: string, payload: object, logMessage: string) => {
