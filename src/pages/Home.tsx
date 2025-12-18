@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { LogOut, SlidersHorizontal, List, History, UserCog } from "lucide-react";
 import { useTheme } from "@/context/ThemeContext";
 import TeamInfo from "@/components/TeamInfo";
+import TypingText from "@/components/TypingText"; // Import TypingText
 
 const Home = () => {
   const { currentUser, logout } = useAuth();
@@ -18,9 +19,11 @@ const Home = () => {
             <h2 className="text-lg font-medium text-yellow-400 tracking-widest">
               SELAMAT HARI NATAL! 🎄
             </h2>
-            <h1 className={`text-4xl md:text-5xl font-bold py-2 ${theme.header}`}>
-              Kendali Modern
-            </h1>
+            <TypingText className="mx-auto">
+              <h1 className={`text-4xl md:text-5xl font-bold py-2 ${theme.header}`}>
+                Kendali Modern
+              </h1>
+            </TypingText>
             <p className="text-yellow-200 mt-2">
               Selamat Datang, <span className="capitalize font-bold">{currentUser?.username || "Pengguna"}</span>! 🎅
             </p>

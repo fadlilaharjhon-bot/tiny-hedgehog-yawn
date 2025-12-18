@@ -194,3 +194,15 @@
   animation-duration: 11s;
   left: 80%;
 }
+
+/* Typing Effect CSS */
+@keyframes typing {
+  from { width: 0 }
+  to { width: 100% }
+}
+
+.typing-text {
+  overflow: hidden; /* Pastikan teks tidak terlihat sebelum animasi */
+  white-space: nowrap; /* Jaga teks tetap dalam satu baris */
+  animation: typing 2s steps(40, end) forwards; /* 2s durasi, 40 langkah (sesuaikan) */
+}
