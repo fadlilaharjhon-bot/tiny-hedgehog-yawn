@@ -40,7 +40,7 @@ const ControlPanel = ({
           <Label className={cn(disabled && "text-gray-500")}>Pilih Mode</Label>
           <div className="grid grid-cols-2 gap-2">
             <Button onClick={() => setMode('auto')} variant={mode === 'auto' ? 'secondary' : 'outline'} disabled={disabled}>
-              Auto (Timer & LDR)
+              Auto
             </Button>
             <Button onClick={() => setMode('manual')} variant={mode === 'manual' ? 'secondary' : 'outline'} disabled={disabled}>
               Manual
